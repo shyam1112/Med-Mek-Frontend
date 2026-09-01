@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// Separate axios instance for admin API calls — uses adminToken
+// Separate axios instance for admin API calls — uses adminToken.
+// Same REACT_APP_API_URL override as src/api/index.ts — see .env.production.
 const adminApi = axios.create({
-  baseURL: '/api',
+  baseURL: process.env.REACT_APP_API_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
 });
 
