@@ -195,10 +195,15 @@ const DoctorList: React.FC = () => {
         confirmText="Delete"
         onConfirm={async () => {
           if (!deleteId) return;
-          await api.delete(`/doctors/${deleteId}`);
-          enqueueSnackbar('Doctor deleted', { variant: 'success' });
-          setDeleteId(null);
-          fetchDoctors();
+          try {
+            await api.delete(`/doctors/${deleteId}`);
+            enqueueSnackbar('Doctor deleted', { variant: 'success' });
+            fetchDoctors();
+          } catch {
+            enqueueSnackbar('Failed to delete doctor', { variant: 'error' });
+          } finally {
+            setDeleteId(null);
+          }
         }}
         onCancel={() => setDeleteId(null)}
       />

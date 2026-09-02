@@ -697,6 +697,13 @@ const Billing: React.FC = () => {
                         ...(extraDiscountMode === 'percent' ? { max: 100 } : {}),
                         style: { width: 70, textAlign: 'right' },
                       }}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end" sx={{ ml: 0 }}>
+                            {extraDiscountMode === 'percent' ? '%' : '₹'}
+                          </InputAdornment>
+                        ),
+                      }}
                     />
                   </Box>
                 </Box>

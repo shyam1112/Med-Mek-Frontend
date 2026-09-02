@@ -434,10 +434,15 @@ const CustomerList: React.FC = () => {
         confirmText="Delete"
         onConfirm={async () => {
           if (!deleteId) return;
-          await api.delete(`/customers/${deleteId}`);
-          enqueueSnackbar('Customer deleted', { variant: 'success' });
-          setDeleteId(null);
-          fetchCustomers();
+          try {
+            await api.delete(`/customers/${deleteId}`);
+            enqueueSnackbar('Customer deleted', { variant: 'success' });
+            fetchCustomers();
+          } catch {
+            enqueueSnackbar('Failed to delete customer', { variant: 'error' });
+          } finally {
+            setDeleteId(null);
+          }
         }}
         onCancel={() => setDeleteId(null)}
       />
