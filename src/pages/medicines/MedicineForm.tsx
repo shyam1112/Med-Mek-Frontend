@@ -40,11 +40,11 @@ const INITIAL_FORM = {
   batchNumber: '', expiryDate: '', purchasePrice: '', sellingPrice: '',
   gstPercentage: '12', currentStock: '0', minimumStockLevel: '10', barcode: '',
   dosageForm: '', strength: '', packSize: '',
-  hsnCode: '', scheduleClass: 'None', unitOfMeasure: 'Strip', storageCondition: '',
-  location: '',
+  hsnCode: '', scheduleClass: 'None', unitOfMeasure: 'Strip', unitsPerPack: '1',
+  storageCondition: '', location: '',
 };
 
-const REQUIRED_FIELDS = ['name', 'category', 'batchNumber', 'expiryDate', 'purchasePrice', 'sellingPrice'] as const;
+const REQUIRED_FIELDS = ['name', 'category', 'expiryDate', 'purchasePrice', 'sellingPrice'] as const;
 type RequiredField = typeof REQUIRED_FIELDS[number];
 
 interface CatalogItem {
@@ -89,11 +89,14 @@ const MedicineForm: React.FC = () => {
           expiryDate: m.expiryDate ? m.expiryDate.split('T')[0] : '',
           purchasePrice: String(m.purchasePrice), sellingPrice: String(m.sellingPrice),
           gstPercentage: String(m.gstPercentage), currentStock: String(m.currentStock),
-          minimumStockLevel: String(m.minimumStockLevel), barcode: m.barcode || '',
+          // Stored in individual units — shown here in packs (matching how
+          // it's entered), converted back to units on save below.
+          minimumStockLevel: String(Math.round(m.minimumStockLevel / (m.unitsPerPack || 1))),
+          barcode: m.barcode || '',
           dosageForm: m.dosageForm || '', strength: m.strength || '', packSize: m.packSize || '',
           hsnCode: m.hsnCode || '', scheduleClass: m.scheduleClass || 'None',
-          unitOfMeasure: m.unitOfMeasure || 'Strip', storageCondition: m.storageCondition || '',
-          location: m.location || '',
+          unitOfMeasure: m.unitOfMeasure || 'Strip', unitsPerPack: String(m.unitsPerPack || 1),
+          storageCondition: m.storageCondition || '', location: m.location || '',
         });
       })
       .catch(() => enqueueSnackbar('Failed to load medicine', { variant: 'error' }))
@@ -153,7 +156,6 @@ const MedicineForm: React.FC = () => {
     const newErrors: Partial<Record<RequiredField, boolean>> = {
       name: !form.name.trim(),
       category: !form.category,
-      batchNumber: !form.batchNumber.trim(),
       expiryDate: !form.expiryDate,
       purchasePrice: !form.purchasePrice,
       sellingPrice: !form.sellingPrice,
@@ -166,13 +168,24 @@ const MedicineForm: React.FC = () => {
 
     setSaving(true);
     try {
+      const unitsPerPack = parseInt(form.unitsPerPack, 10) || 1;
       const payload = {
         ...form,
         purchasePrice: parseFloat(form.purchasePrice),
         sellingPrice: parseFloat(form.sellingPrice),
         gstPercentage: parseInt(form.gstPercentage, 10),
-        currentStock: parseInt(form.currentStock, 10),
-        minimumStockLevel: parseInt(form.minimumStockLevel, 10),
+        // Current Stock is only ever entered (in packs) when creating a new
+        // medicine — in edit mode the field is disabled and already holds the
+        // real stored unit count, so it's sent back unchanged, not re-converted.
+        currentStock: isEdit
+          ? parseInt(form.currentStock, 10)
+          : (parseInt(form.currentStock, 10) || 0) * unitsPerPack,
+        // Minimum Stock Level is always entered/displayed in packs (see the
+        // matching /unitsPerPack conversion when loading it for edit below) —
+        // converted to individual units here, the same denomination currentStock
+        // is compared against for the low-stock alert.
+        minimumStockLevel: (parseInt(form.minimumStockLevel, 10) || 0) * unitsPerPack,
+        unitsPerPack,
       };
 
       if (isEdit) {
@@ -306,7 +319,7 @@ const MedicineForm: React.FC = () => {
           />
           {fromCatalog && (
             <Alert severity="success" variant="outlined" sx={{ mt: 1.5, py: 0.5 }}>
-              Medicine details auto-filled. Please complete batch number, expiry date, purchase price, and stock quantity below.
+              Medicine details auto-filled. Please complete expiry date, purchase price, and stock quantity below.
             </Alert>
           )}
         </Paper>
@@ -428,6 +441,21 @@ const MedicineForm: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={4}>
               <TextField
+                label={`Tablets/Units per ${form.unitOfMeasure}`}
+                type="number"
+                value={form.unitsPerPack}
+                onChange={handleChange('unitsPerPack')}
+                fullWidth
+                inputProps={{ min: 1, step: 1 }}
+                helperText={
+                  Number(form.unitsPerPack) > 1
+                    ? 'Billing will sell and price by individual unit, not whole pack'
+                    : `Leave as 1 if always sold as a whole ${form.unitOfMeasure.toLowerCase()}`
+                }
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField
                 label="HSN Code"
                 value={form.hsnCode}
                 onChange={handleChange('hsnCode')}
@@ -474,12 +502,10 @@ const MedicineForm: React.FC = () => {
           <Grid container spacing={2.5}>
             <Grid item xs={12} md={6}>
               <TextField
-                label="Batch Number *"
+                label="Batch Number"
                 value={form.batchNumber}
                 onChange={handleChange('batchNumber')}
                 fullWidth
-                error={!!errors.batchNumber}
-                helperText={errors.batchNumber ? 'Batch number is required' : ''}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -509,7 +535,7 @@ const MedicineForm: React.FC = () => {
           <Grid container spacing={2.5}>
             <Grid item xs={12} md={4}>
               <TextField
-                label="Purchase Price (₹) *"
+                label={`Purchase Price (₹) per ${form.unitOfMeasure} *`}
                 type="number"
                 value={form.purchasePrice}
                 onChange={handleChange('purchasePrice')}
@@ -521,7 +547,7 @@ const MedicineForm: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={4}>
               <TextField
-                label="Selling Price / MRP (₹) *"
+                label={`Selling Price / MRP (₹) per ${form.unitOfMeasure} *`}
                 type="number"
                 value={form.sellingPrice}
                 onChange={handleChange('sellingPrice')}
@@ -552,6 +578,36 @@ const MedicineForm: React.FC = () => {
                 {GST_OPTIONS.map((g) => <MenuItem key={g} value={g}>{g}%</MenuItem>)}
               </TextField>
             </Grid>
+            {Number(form.unitsPerPack) > 1 && (
+              <>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Purchase Price per Unit (₹)"
+                    value={
+                      form.purchasePrice
+                        ? (parseFloat(form.purchasePrice) / Number(form.unitsPerPack)).toFixed(2)
+                        : ''
+                    }
+                    fullWidth
+                    disabled
+                    helperText={`Auto-calculated: ₹${form.purchasePrice || 0} ÷ ${form.unitsPerPack} per ${form.unitOfMeasure.toLowerCase()}`}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Selling Price per Unit (₹)"
+                    value={
+                      form.sellingPrice
+                        ? (parseFloat(form.sellingPrice) / Number(form.unitsPerPack)).toFixed(2)
+                        : ''
+                    }
+                    fullWidth
+                    disabled
+                    helperText={`Auto-calculated: ₹${form.sellingPrice || 0} ÷ ${form.unitsPerPack} per ${form.unitOfMeasure.toLowerCase()} — this is what billing charges`}
+                  />
+                </Grid>
+              </>
+            )}
           </Grid>
 
           <Divider sx={{ my: 3 }} />
@@ -559,25 +615,46 @@ const MedicineForm: React.FC = () => {
           <Grid container spacing={2.5}>
             <Grid item xs={12} md={6}>
               <TextField
-                label="Current Stock"
+                label={Number(form.unitsPerPack) > 1 ? `Current Stock (in ${form.unitOfMeasure}s)` : 'Current Stock'}
                 type="number"
                 value={form.currentStock}
                 onChange={handleChange('currentStock')}
                 fullWidth
-                inputProps={{ min: 0 }}
-                helperText={isEdit ? 'Use Inventory module to adjust stock' : ''}
+                inputProps={{ min: 0, step: Number(form.unitsPerPack) > 1 ? 1 : 1 }}
+                helperText={
+                  isEdit
+                    ? 'Use Inventory module to adjust stock'
+                    : Number(form.unitsPerPack) > 1
+                      ? `Enter how many ${form.unitOfMeasure.toLowerCase()}s you have`
+                      : ''
+                }
                 disabled={isEdit}
               />
+              {!isEdit && Number(form.unitsPerPack) > 1 && (
+                <TextField
+                  label="Total Unit Stock"
+                  value={form.currentStock ? Number(form.currentStock) * Number(form.unitsPerPack) : 0}
+                  fullWidth
+                  disabled
+                  size="small"
+                  sx={{ mt: 1.5 }}
+                  helperText={`Auto-calculated: ${form.currentStock || 0} ${form.unitOfMeasure.toLowerCase()}s × ${form.unitsPerPack} — this is what's tracked in inventory`}
+                />
+              )}
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
-                label="Minimum Stock Level"
+                label={Number(form.unitsPerPack) > 1 ? `Minimum Stock Level (in ${form.unitOfMeasure}s)` : 'Minimum Stock Level'}
                 type="number"
                 value={form.minimumStockLevel}
                 onChange={handleChange('minimumStockLevel')}
                 fullWidth
                 inputProps={{ min: 0 }}
-                helperText="Alert will trigger below this level"
+                helperText={
+                  Number(form.unitsPerPack) > 1
+                    ? `Alert will trigger below this many ${form.unitOfMeasure.toLowerCase()}s`
+                    : 'Alert will trigger below this level'
+                }
               />
             </Grid>
           </Grid>

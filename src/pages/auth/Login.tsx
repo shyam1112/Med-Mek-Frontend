@@ -66,7 +66,7 @@ const Login: React.FC = () => {
 
           <Typography variant="h6" fontWeight={600} mb={0.5}>Sign in</Typography>
           <Typography variant="body2" color="text.secondary" mb={3}>
-            Enter your username and password to continue
+            Enter your username or email and password to continue
           </Typography>
 
           {error && (
@@ -80,7 +80,7 @@ const Login: React.FC = () => {
 
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
-              label="Username"
+              label="Username or Email"
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase())}
               fullWidth

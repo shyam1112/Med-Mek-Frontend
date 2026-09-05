@@ -12,6 +12,7 @@ export interface User {
   storeGST: string;
   storeDLNo: string;
   storeUpiId: string;
+  defaultDiscountPercent?: number;
   status: 'pending' | 'approved' | 'rejected';
   role: 'user' | 'superadmin';
   seenAlerts?: {

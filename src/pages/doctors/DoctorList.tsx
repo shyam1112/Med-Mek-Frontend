@@ -3,7 +3,7 @@ import {
   Box, Button, TextField, InputAdornment, IconButton, Tooltip,
   Typography, Dialog, DialogTitle, DialogContent, DialogActions, Grid, Chip,
 } from '@mui/material';
-import { Add, Search, Edit, Delete } from '@mui/icons-material';
+import { Add, Search, Edit, Delete, Star, StarBorder } from '@mui/icons-material';
 import DataTable from '../../components/common/DataTable';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import api from '../../api';
@@ -18,6 +18,7 @@ interface Doctor {
   phone: string;
   registrationNo: string;
   isActive: boolean;
+  isDefault: boolean;
 }
 
 const EMPTY = {
@@ -55,6 +56,19 @@ const DoctorList: React.FC = () => {
 
   useEffect(() => { fetchDoctors(); }, [fetchDoctors]);
 
+  const handleToggleDefault = async (doctor: Doctor) => {
+    try {
+      await api.put(`/doctors/${doctor._id}/set-default`, { isDefault: !doctor.isDefault });
+      enqueueSnackbar(
+        doctor.isDefault ? 'Removed as default doctor' : `${doctor.name} set as default doctor`,
+        { variant: 'success' }
+      );
+      fetchDoctors();
+    } catch {
+      enqueueSnackbar('Failed to update default doctor', { variant: 'error' });
+    }
+  };
+
   const handleSave = async () => {
     if (!form.name) { enqueueSnackbar('Name is required', { variant: 'warning' }); return; }
     setSaving(true);
@@ -80,7 +94,12 @@ const DoctorList: React.FC = () => {
       id: 'name', label: 'Doctor Name', minWidth: 180,
       render: (row: Doctor) => (
         <Box>
-          <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
+            {row.isDefault && (
+              <Chip label="Default" size="small" color="primary" sx={{ height: 18, fontSize: 10 }} />
+            )}
+          </Box>
           {row.qualification && <Typography variant="caption" color="text.secondary">{row.qualification}</Typography>}
         </Box>
       ),
@@ -107,6 +126,11 @@ const DoctorList: React.FC = () => {
       id: 'actions', label: '', align: 'right' as const,
       render: (row: Doctor) => (
         <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+          <Tooltip title={row.isDefault ? 'Remove as default doctor' : 'Set as default doctor'}>
+            <IconButton size="small" color="warning" onClick={() => handleToggleDefault(row)}>
+              {row.isDefault ? <Star fontSize="small" /> : <StarBorder fontSize="small" />}
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Edit">
             <IconButton size="small" color="primary" onClick={() => {
               setForm({

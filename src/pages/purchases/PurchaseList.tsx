@@ -38,6 +38,8 @@ interface MedicineOption {
   dosageForm?: string;
   strength?: string;
   suggestedMRP?: number;
+  unitOfMeasure?: string;
+  unitsPerPack?: number;
   source: 'inventory' | 'catalog';
 }
 
@@ -56,6 +58,7 @@ interface PurchaseItem {
   newHsnCode: string;
   newScheduleClass: string;
   newUnitOfMeasure: string;
+  newUnitsPerPack: string;
   newStorageCondition: string;
   sellingPrice: string;
   batchNumber: string;
@@ -63,6 +66,11 @@ interface PurchaseItem {
   quantity: number;
   purchasePrice: number;
   gstPercentage: number;
+  // Carried over from the picked existing-inventory medicine (see
+  // handleMedicineSelect) so the "units added" readout below Qty works for
+  // restocking an existing medicine too, not just newly-created ones.
+  selectedUnitOfMeasure: string;
+  selectedUnitsPerPack: number;
 }
 
 const EMPTY_ITEM: PurchaseItem = {
@@ -70,7 +78,8 @@ const EMPTY_ITEM: PurchaseItem = {
   newMedicineName: '', newGenericName: '', newCategory: 'Other',
   newManufacturer: '', newDosageForm: '', newStrength: '', newPackSize: '',
   newBarcode: '', newMinimumStockLevel: '10',
-  newHsnCode: '', newScheduleClass: 'None', newUnitOfMeasure: 'Strip', newStorageCondition: '',
+  selectedUnitOfMeasure: 'Strip', selectedUnitsPerPack: 1,
+  newHsnCode: '', newScheduleClass: 'None', newUnitOfMeasure: 'Strip', newUnitsPerPack: '1', newStorageCondition: '',
   sellingPrice: '',
   batchNumber: '', expiryDate: '',
   quantity: 1, purchasePrice: 0, gstPercentage: 12,
@@ -210,7 +219,10 @@ const PurchaseList: React.FC = () => {
     if (opt.source === 'inventory') {
       setItems((p) => {
         const u = [...p];
-        u[idx] = { ...u[idx], medicineId: opt._id, isNew: false, newMedicineName: '', gstPercentage: opt.gstPercentage };
+        u[idx] = {
+          ...u[idx], medicineId: opt._id, isNew: false, newMedicineName: '', gstPercentage: opt.gstPercentage,
+          selectedUnitOfMeasure: opt.unitOfMeasure || 'Strip', selectedUnitsPerPack: opt.unitsPerPack || 1,
+        };
         return u;
       });
     } else {
@@ -249,7 +261,6 @@ const PurchaseList: React.FC = () => {
       if (!it.isNew && !it.medicineId) { enqueueSnackbar('Select a medicine from dropdown for all items', { variant: 'warning' }); return; }
       if (it.isNew && !it.newMedicineName.trim()) { enqueueSnackbar('Medicine name is required', { variant: 'warning' }); return; }
       if (it.isNew && !it.sellingPrice) { enqueueSnackbar('Selling price (MRP) is required for new medicines', { variant: 'warning' }); return; }
-      if (it.isNew && !it.batchNumber.trim()) { enqueueSnackbar('Batch number is required for new medicines', { variant: 'warning' }); return; }
       if (it.isNew && !it.expiryDate) { enqueueSnackbar('Expiry date is required for new medicines', { variant: 'warning' }); return; }
     }
     setSaving(true);
@@ -266,8 +277,12 @@ const PurchaseList: React.FC = () => {
                   dosageForm: it.newDosageForm, strength: it.newStrength, packSize: it.newPackSize,
                   barcode: it.newBarcode,
                   hsnCode: it.newHsnCode, scheduleClass: it.newScheduleClass,
-                  unitOfMeasure: it.newUnitOfMeasure, storageCondition: it.newStorageCondition,
-                  minimumStockLevel: parseInt(it.newMinimumStockLevel, 10) || 10,
+                  unitOfMeasure: it.newUnitOfMeasure, unitsPerPack: parseInt(it.newUnitsPerPack, 10) || 1,
+                  storageCondition: it.newStorageCondition,
+                  // Entered in packs (matching the field label) — converted
+                  // to individual units, the same denomination currentStock
+                  // (and the low-stock comparison) uses.
+                  minimumStockLevel: (parseInt(it.newMinimumStockLevel, 10) || 10) * (parseInt(it.newUnitsPerPack, 10) || 1),
                   gstPercentage: it.gstPercentage,
                   sellingPrice: parseFloat(it.sellingPrice) || 0,
                 },
@@ -400,7 +415,7 @@ const PurchaseList: React.FC = () => {
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2" fontWeight={600}>{opt.name}</Typography>
                             {opt.source === 'inventory'
-                              ? <Chip label={`Stock: ${opt.currentStock}`} size="small" color="success" variant="outlined" sx={{ fontSize: 10 }} />
+                              ? <Chip label={`Stock: ${opt.currentStock} ${(opt.unitsPerPack || 1) > 1 ? 'units' : (opt.unitOfMeasure || 'Strip').toLowerCase() + 's'}`} size="small" color="success" variant="outlined" sx={{ fontSize: 10 }} />
                               : <Chip label="New" size="small" color="warning" sx={{ fontSize: 10 }} />
                             }
                           </Box>
@@ -466,10 +481,30 @@ const PurchaseList: React.FC = () => {
                       </TextField>
                     </Grid>
                     <Grid item xs={6} sm={3}>
+                      <TextField
+                        label={`Tablets/Units per ${item.newUnitOfMeasure}`}
+                        type="number"
+                        value={item.newUnitsPerPack}
+                        onChange={(e) => updateItem(idx, 'newUnitsPerPack', e.target.value)}
+                        fullWidth
+                        size="small"
+                        inputProps={{ min: 1, step: 1 }}
+                        helperText={Number(item.newUnitsPerPack) > 1 ? 'Bills per individual unit' : 'Leave as 1 if sold whole'}
+                      />
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
                       <TextField label="Barcode" value={item.newBarcode} onChange={(e) => updateItem(idx, 'newBarcode', e.target.value)} fullWidth size="small" />
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                      <TextField label="Minimum Stock Level" type="number" value={item.newMinimumStockLevel} onChange={(e) => updateItem(idx, 'newMinimumStockLevel', e.target.value)} fullWidth size="small" inputProps={{ min: 0 }} />
+                      <TextField
+                        label={Number(item.newUnitsPerPack) > 1 ? `Min. Stock (in ${item.newUnitOfMeasure}s)` : 'Minimum Stock Level'}
+                        type="number"
+                        value={item.newMinimumStockLevel}
+                        onChange={(e) => updateItem(idx, 'newMinimumStockLevel', e.target.value)}
+                        fullWidth
+                        size="small"
+                        inputProps={{ min: 0 }}
+                      />
                     </Grid>
                     <Grid item xs={6} sm={3}>
                       <TextField label="HSN Code" placeholder="3004" value={item.newHsnCode} onChange={(e) => updateItem(idx, 'newHsnCode', e.target.value)} fullWidth size="small" />
@@ -489,7 +524,7 @@ const PurchaseList: React.FC = () => {
                 <Grid container item xs={12} spacing={1.5}>
                   <Grid item xs={6} sm={3}>
                     <TextField
-                      label={item.isNew ? 'Batch # *' : 'Batch # (optional)'}
+                      label="Batch # (optional)"
                       value={item.batchNumber} onChange={(e) => updateItem(idx, 'batchNumber', e.target.value)} fullWidth size="small"
                     />
                   </Grid>
@@ -504,12 +539,15 @@ const PurchaseList: React.FC = () => {
                     <TextField label="Qty *" type="number" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', parseInt(e.target.value) || 1)} fullWidth size="small" inputProps={{ min: 1 }} />
                   </Grid>
                   <Grid item xs={4} sm={2}>
-                    <TextField label="Buy Price ₹ *" type="number" value={item.purchasePrice} onChange={(e) => updateItem(idx, 'purchasePrice', parseFloat(e.target.value) || 0)} fullWidth size="small" inputProps={{ min: 0, step: 0.01 }} />
+                    <TextField
+                      label={`Buy Price ₹/${item.isNew ? item.newUnitOfMeasure : item.selectedUnitOfMeasure} *`}
+                      type="number" value={item.purchasePrice} onChange={(e) => updateItem(idx, 'purchasePrice', parseFloat(e.target.value) || 0)} fullWidth size="small" inputProps={{ min: 0, step: 0.01 }}
+                    />
                   </Grid>
                   {item.isNew && (
                     <Grid item xs={4} sm={2}>
                       <TextField
-                        label="Sell Price/MRP ₹ *" type="number"
+                        label={`Sell ₹/${item.newUnitOfMeasure} *`} type="number"
                         value={item.sellingPrice}
                         onChange={(e) => updateItem(idx, 'sellingPrice', e.target.value)}
                         fullWidth size="small"
@@ -528,6 +566,45 @@ const PurchaseList: React.FC = () => {
                       <Add sx={{ transform: 'rotate(45deg)' }} />
                     </IconButton>
                   </Grid>
+                  {/* Buy Price per Unit applies to restocking an existing medicine
+                      too (uses its saved units-per-pack), not just new ones —
+                      Sell Price per Unit only exists for new medicines since an
+                      existing one's MRP isn't re-entered on this screen. */}
+                  {(item.isNew ? Number(item.newUnitsPerPack) : item.selectedUnitsPerPack) > 1 && (
+                    <Grid item xs={item.isNew ? 6 : 12} sm={3}>
+                      <TextField
+                        label="Buy Price per Unit (₹)"
+                        value={
+                          item.purchasePrice
+                            ? (item.purchasePrice / (item.isNew ? Number(item.newUnitsPerPack) : item.selectedUnitsPerPack)).toFixed(2)
+                            : ''
+                        }
+                        fullWidth size="small" disabled
+                      />
+                    </Grid>
+                  )}
+                  {item.isNew && Number(item.newUnitsPerPack) > 1 && (
+                    <Grid item xs={6} sm={3}>
+                      <TextField
+                        label="Sell Price per Unit (₹)"
+                        value={item.sellingPrice ? (parseFloat(item.sellingPrice) / Number(item.newUnitsPerPack)).toFixed(2) : ''}
+                        fullWidth size="small" disabled
+                      />
+                    </Grid>
+                  )}
+                  {/* Works for restocking an existing medicine too, not just new
+                      ones — uses whichever units-per-pack applies (the new-medicine
+                      form field, or the one carried over from the picked medicine). */}
+                  {(item.isNew ? Number(item.newUnitsPerPack) : item.selectedUnitsPerPack) > 1 && (
+                    <Grid item xs={6} sm={3}>
+                      <TextField
+                        label="Total Units Added"
+                        value={item.quantity * (item.isNew ? Number(item.newUnitsPerPack) : item.selectedUnitsPerPack)}
+                        fullWidth size="small" disabled
+                        helperText={`${item.quantity} ${(item.isNew ? item.newUnitOfMeasure : item.selectedUnitOfMeasure).toLowerCase()}s × ${item.isNew ? item.newUnitsPerPack : item.selectedUnitsPerPack}`}
+                      />
+                    </Grid>
+                  )}
                 </Grid>
               </Grid>
             </Box>

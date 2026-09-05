@@ -19,6 +19,7 @@ const Profile: React.FC = () => {
     storeGST: user?.storeGST || '',
     storeDLNo: user?.storeDLNo || '',
     storeUpiId: user?.storeUpiId || '',
+    defaultDiscountPercent: String(user?.defaultDiscountPercent || 0),
   });
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [saving, setSaving] = useState(false);
@@ -27,7 +28,11 @@ const Profile: React.FC = () => {
   const handleProfileSave = async () => {
     setSaving(true);
     try {
-      const { data } = await api.put('/auth/profile', profile);
+      const payload = {
+        ...profile,
+        defaultDiscountPercent: Math.min(100, Math.max(0, parseFloat(profile.defaultDiscountPercent) || 0)),
+      };
+      const { data } = await api.put('/auth/profile', payload);
       updateUser(data.data);
       enqueueSnackbar('Profile updated', { variant: 'success' });
     } catch {
@@ -102,6 +107,17 @@ const Profile: React.FC = () => {
                   fullWidth
                   placeholder="yourstore@upi"
                   helperText="Used to generate a UPI QR code on bills paid via UPI"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Default Discount %"
+                  type="number"
+                  value={profile.defaultDiscountPercent}
+                  onChange={(e) => setProfile({ ...profile, defaultDiscountPercent: e.target.value })}
+                  fullWidth
+                  inputProps={{ min: 0, max: 100, step: 0.5 }}
+                  helperText="Auto-applied as the Extra Discount on every new bill — still editable per bill. 0 = no auto-discount."
                 />
               </Grid>
               <Grid item xs={12}>

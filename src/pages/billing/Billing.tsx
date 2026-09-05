@@ -25,7 +25,20 @@ interface Medicine {
   expiryDate?: string;
   scheduleClass?: 'None' | 'H' | 'H1' | 'X';
   location?: string;
+  unitOfMeasure?: string;
+  unitsPerPack?: number;
 }
+
+// Billing always sells and prices by individual unit (tablet/ml/piece...),
+// never by whole pack — for a medicine with unitsPerPack===1 (the default,
+// unchanged for every existing medicine) this is identical to the pack price.
+const unitPriceOf = (medicine: Medicine): number => medicine.sellingPrice / (medicine.unitsPerPack || 1);
+// unitOfMeasure names the *pack* (Strip/Bottle/Box...), which is only an
+// accurate label for what's being sold when unitsPerPack is 1 (one unit ==
+// one whole pack) — once a pack is split into individual units, there's no
+// separate name for "one tablet out of a strip," so just say "unit".
+const unitLabel = (medicine: Medicine): string =>
+  (medicine.unitsPerPack || 1) > 1 ? 'unit' : (medicine.unitOfMeasure || 'Strip').toLowerCase();
 
 const SCHEDULE_COLORS: Record<string, 'warning' | 'error'> = { H: 'warning', H1: 'warning', X: 'error' };
 
@@ -72,9 +85,17 @@ const Billing: React.FC = () => {
   const [doctorOptions, setDoctorOptions] = useState<Doctor[]>([]);
   const [doctorLoading, setDoctorLoading] = useState(false);
   const [addingDoctor, setAddingDoctor] = useState(false);
+  // Whichever doctor is marked default in Doctors — auto-selected below on
+  // load and after every bill, but the pharmacist can still pick someone
+  // else per-bill same as before.
+  const [defaultDoctor, setDefaultDoctor] = useState<Doctor | null>(null);
   const [paymentMode, setPaymentMode] = useState('cash');
-  const [extraDiscountMode, setExtraDiscountMode] = useState<DiscountMode>('amount');
-  const [extraDiscountValue, setExtraDiscountValue] = useState(0);
+  // Store-level default (Profile page) auto-applied here as a % discount —
+  // still fully editable/removable per bill, same as the default doctor.
+  const [extraDiscountMode, setExtraDiscountMode] = useState<DiscountMode>(
+    user?.defaultDiscountPercent ? 'percent' : 'amount'
+  );
+  const [extraDiscountValue, setExtraDiscountValue] = useState(user?.defaultDiscountPercent || 0);
   const [cgstOverride, setCgstOverride] = useState<number | null>(null);
   const [sgstOverride, setSgstOverride] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -104,16 +125,31 @@ const Billing: React.FC = () => {
     setCustomerName('');
     setCustomerMobile('');
     setCustomerAddress('');
-    setDoctorId('');
-    setDoctorName('');
+    setDoctorId(defaultDoctor?._id || '');
+    setDoctorName(defaultDoctor?.name || '');
     setCustomerOptions([]);
     setDoctorOptions([]);
-    setExtraDiscountMode('amount');
-    setExtraDiscountValue(0);
+    setExtraDiscountMode(user?.defaultDiscountPercent ? 'percent' : 'amount');
+    setExtraDiscountValue(user?.defaultDiscountPercent || 0);
     setCgstOverride(null);
     setSgstOverride(null);
     setPaymentMode('cash');
   };
+
+  // Fetch once on load — pre-selects the default doctor on the very first
+  // bill too, not just ones after a reset.
+  useEffect(() => {
+    api.get('/doctors/default')
+      .then(({ data }) => {
+        if (data.data) {
+          setDefaultDoctor(data.data);
+          setDoctorId(data.data._id);
+          setDoctorName(data.data.name);
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const searchCustomers = useCallback((q: string) => {
     clearTimeout(customerTimer.current);
@@ -179,14 +215,15 @@ const Billing: React.FC = () => {
       updated[existing].total = calcItemTotal(updated[existing]);
       setItems(updated);
     } else {
+      const unitPrice = unitPriceOf(medicine);
       const newItem: BillItem = {
         medicine,
         quantity: 1,
-        sellingPrice: medicine.sellingPrice,
+        sellingPrice: unitPrice,
         discountMode: 'amount',
         discountValue: 0,
         gstPercentage: medicine.gstPercentage,
-        total: medicine.sellingPrice * (1 + medicine.gstPercentage / 100),
+        total: unitPrice * (1 + medicine.gstPercentage / 100),
       };
       setItems([...items, newItem]);
     }
@@ -350,12 +387,12 @@ const Billing: React.FC = () => {
                       </Box>
                       <Typography variant="caption" color="text.secondary">
                         {(option as Medicine).genericName} • Batch: {(option as Medicine).batchNumber} •
-                        Stock: {(option as Medicine).currentStock}
+                        Stock: {(option as Medicine).currentStock} {unitLabel(option as Medicine)}
                         {(option as Medicine).location ? ` • Loc: ${(option as Medicine).location}` : ''}
                       </Typography>
                     </Box>
                     <Typography variant="body2" fontWeight={700} color="primary">
-                      ₹{(option as Medicine).sellingPrice}
+                      ₹{unitPriceOf(option as Medicine).toFixed(2)}/{unitLabel(option as Medicine)}
                     </Typography>
                   </Box>
                 )}
@@ -387,10 +424,15 @@ const Billing: React.FC = () => {
                       <TableCell>
                         <Typography variant="body2" fontWeight={600}>{item.medicine.name}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Batch: {item.medicine.batchNumber} | Avl: {item.medicine.currentStock}
+                          Batch: {item.medicine.batchNumber} | Avl: {item.medicine.currentStock} {unitLabel(item.medicine)}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">₹{item.sellingPrice.toFixed(2)}</TableCell>
+                      <TableCell align="right">
+                        ₹{item.sellingPrice.toFixed(2)}
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          /{unitLabel(item.medicine)}
+                        </Typography>
+                      </TableCell>
                       <TableCell align="center">
                         <TextField
                           type="number"
@@ -599,7 +641,11 @@ const Billing: React.FC = () => {
                           </>
                         ),
                       }}
-                      helperText={doctorId ? '✓ Existing doctor linked' : ''}
+                      helperText={
+                        doctorId && doctorId === defaultDoctor?._id
+                          ? '✓ Default doctor auto-selected — change above if needed'
+                          : doctorId ? '✓ Existing doctor linked' : ''
+                      }
                       FormHelperTextProps={{ sx: { color: 'success.main' } }}
                     />
                   )}
@@ -710,6 +756,7 @@ const Billing: React.FC = () => {
                 {extraDiscountMode === 'percent' && extraDiscountValue > 0 && (
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5 }}>
                     − ₹{extraDiscountAmount.toFixed(2)}
+                    {user?.defaultDiscountPercent === extraDiscountValue && ' (your default — adjust above if needed)'}
                   </Typography>
                 )}
               </Box>

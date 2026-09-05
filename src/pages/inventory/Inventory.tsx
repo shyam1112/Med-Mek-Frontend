@@ -29,6 +29,8 @@ interface Medicine {
   batchNumber: string;
   scheduleClass?: 'None' | 'H' | 'H1' | 'X';
   location?: string;
+  unitOfMeasure?: string;
+  unitsPerPack?: number;
 }
 
 const SCHEDULE_COLORS: Record<string, 'warning' | 'error'> = { H: 'warning', H1: 'warning', X: 'error' };
@@ -205,6 +207,7 @@ const Inventory: React.FC = () => {
                     </Box>
                     <Typography variant="caption" color="text.secondary">
                       Batch: {option.batchNumber || '—'} • Stock: {option.currentStock}
+                      {(option.unitsPerPack || 1) > 1 ? ` ${option.unitOfMeasure?.toLowerCase()}-units` : ''}
                       {option.location ? ` • Loc: ${option.location}` : ''}
                     </Typography>
                   </Box>
@@ -215,14 +218,35 @@ const Inventory: React.FC = () => {
               )}
             />
             {dialogType !== 'adjust' ? (
-              <TextField
-                label="Quantity"
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                inputProps={{ min: 1 }}
-                fullWidth
-              />
+              <>
+                <TextField
+                  label={
+                    (selectedMedicine?.unitsPerPack || 1) > 1
+                      ? `Quantity (in ${selectedMedicine?.unitOfMeasure}s)`
+                      : 'Quantity'
+                  }
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  inputProps={{ min: 1 }}
+                  fullWidth
+                  helperText={
+                    (selectedMedicine?.unitsPerPack || 1) > 1
+                      ? `Enter number of ${selectedMedicine?.unitOfMeasure?.toLowerCase()}s`
+                      : ''
+                  }
+                />
+                {(selectedMedicine?.unitsPerPack || 1) > 1 && (
+                  <TextField
+                    label="Total Units"
+                    value={quantity ? Number(quantity) * (selectedMedicine?.unitsPerPack || 1) : 0}
+                    fullWidth
+                    disabled
+                    size="small"
+                    helperText={`${quantity || 0} ${selectedMedicine?.unitOfMeasure?.toLowerCase()}s × ${selectedMedicine?.unitsPerPack} — this is what changes in inventory`}
+                  />
+                )}
+              </>
             ) : (
               <TextField
                 label="New Stock Quantity"
@@ -231,7 +255,13 @@ const Inventory: React.FC = () => {
                 onChange={(e) => setNewQuantity(e.target.value)}
                 inputProps={{ min: 0 }}
                 fullWidth
-                helperText={selectedMedicine ? `Current: ${selectedMedicine.currentStock}` : ''}
+                helperText={
+                  selectedMedicine
+                    ? (selectedMedicine.unitsPerPack || 1) > 1
+                      ? `Enter total individual units actually on the shelf (current: ${selectedMedicine.currentStock}) — not a ${selectedMedicine.unitOfMeasure?.toLowerCase()} count, since partial-strip sales mean the real count may not be a round number of ${selectedMedicine.unitOfMeasure?.toLowerCase()}s`
+                      : `Current: ${selectedMedicine.currentStock}`
+                    : ''
+                }
               />
             )}
             <TextField
