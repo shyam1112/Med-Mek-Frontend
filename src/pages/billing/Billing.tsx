@@ -442,7 +442,16 @@ const Billing: React.FC = () => {
                           size="small"
                         />
                       </TableCell>
-                      <TableCell align="right">{item.gstPercentage}%</TableCell>
+                      <TableCell align="right">
+                        <TextField
+                          type="number"
+                          value={item.gstPercentage}
+                          onChange={(e) => updateItem(idx, 'gstPercentage', Math.min(Math.max(parseFloat(e.target.value) || 0, 0), 28))}
+                          inputProps={{ min: 0, max: 28, style: { textAlign: 'right', width: 45 } }}
+                          size="small"
+                          InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                        />
+                      </TableCell>
                       <TableCell align="right">
                         <TextField
                           type="number"

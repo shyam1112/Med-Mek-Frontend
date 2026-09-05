@@ -3,7 +3,7 @@ import {
   Box, Button, TextField, InputAdornment, Chip, IconButton,
   Tooltip, MenuItem, Select, FormControl, InputLabel,
 } from '@mui/material';
-import { Add, Search, Edit, Delete, Visibility, FilterList, LocalPrintshop } from '@mui/icons-material';
+import { Add, Search, Edit, Delete, FilterList, LocalPrintshop } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import DataTable from '../../components/common/DataTable';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -137,11 +137,6 @@ const MedicineList: React.FC = () => {
               )}
             >
               <LocalPrintshop fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Stock History">
-            <IconButton size="small" onClick={() => navigate(`/medicines/${row._id}/history`)}>
-              <Visibility fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Edit">
