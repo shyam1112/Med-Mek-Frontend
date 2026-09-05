@@ -295,11 +295,15 @@ const Billing: React.FC = () => {
       enqueueSnackbar('Add at least one medicine', { variant: 'warning' });
       return;
     }
+    if (!customerName.trim()) {
+      enqueueSnackbar('Customer name is required', { variant: 'warning' });
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         customerId: customerId || undefined,
-        customerName: customerName || 'Walk-in Customer',
+        customerName: customerName.trim(),
         customerMobile,
         customerAddress,
         doctorId: doctorId || undefined,
@@ -550,6 +554,9 @@ const Billing: React.FC = () => {
                       {...params}
                       label="Customer Name"
                       placeholder="Search or type name..."
+                      required
+                      error={!customerName.trim()}
+                      helperText={!customerName.trim() ? 'Customer name is required' : ''}
                       InputProps={{
                         ...params.InputProps,
                         endAdornment: (
