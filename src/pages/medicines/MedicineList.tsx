@@ -19,7 +19,7 @@ interface Medicine {
   category: string;
   manufacturer: string;
   batchNumber: string;
-  expiryDate: string;
+  expiryDate?: string;
   purchasePrice: number;
   sellingPrice: number;
   gstPercentage: number;
@@ -92,7 +92,8 @@ const MedicineList: React.FC = () => {
     return <Chip label={m.currentStock} color="success" size="small" />;
   };
 
-  const getExpiryChip = (dateStr: string) => {
+  const getExpiryChip = (dateStr?: string) => {
+    if (!dateStr) return <Chip label="No Expiry" size="small" variant="outlined" />;
     const date = new Date(dateStr);
     const now = new Date();
     const days = Math.ceil((date.getTime() - now.getTime()) / 86400000);

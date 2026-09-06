@@ -38,13 +38,13 @@ const SCHEDULE_CLASSES: Record<string, string> = {
 const INITIAL_FORM = {
   name: '', genericName: '', category: '', manufacturer: '',
   batchNumber: '', expiryDate: '', purchasePrice: '', sellingPrice: '',
-  gstPercentage: '12', currentStock: '0', minimumStockLevel: '10', barcode: '',
+  gstPercentage: '12', currentStock: '0', looseUnits: '0', minimumStockLevel: '10', barcode: '',
   dosageForm: '', strength: '', packSize: '',
   hsnCode: '', scheduleClass: 'None', unitOfMeasure: 'Strip', unitsPerPack: '1',
   storageCondition: '', location: '',
 };
 
-const REQUIRED_FIELDS = ['name', 'category', 'expiryDate', 'purchasePrice', 'sellingPrice'] as const;
+const REQUIRED_FIELDS = ['name', 'category', 'purchasePrice', 'sellingPrice'] as const;
 type RequiredField = typeof REQUIRED_FIELDS[number];
 
 interface CatalogItem {
@@ -88,7 +88,7 @@ const MedicineForm: React.FC = () => {
           manufacturer: m.manufacturer || '', batchNumber: m.batchNumber,
           expiryDate: m.expiryDate ? m.expiryDate.split('T')[0] : '',
           purchasePrice: String(m.purchasePrice), sellingPrice: String(m.sellingPrice),
-          gstPercentage: String(m.gstPercentage), currentStock: String(m.currentStock),
+          gstPercentage: String(m.gstPercentage), currentStock: String(m.currentStock), looseUnits: '0',
           // Stored in individual units — shown here in packs (matching how
           // it's entered), converted back to units on save below.
           minimumStockLevel: String(Math.round(m.minimumStockLevel / (m.unitsPerPack || 1))),
@@ -156,7 +156,6 @@ const MedicineForm: React.FC = () => {
     const newErrors: Partial<Record<RequiredField, boolean>> = {
       name: !form.name.trim(),
       category: !form.category,
-      expiryDate: !form.expiryDate,
       purchasePrice: !form.purchasePrice,
       sellingPrice: !form.sellingPrice,
     };
@@ -179,7 +178,9 @@ const MedicineForm: React.FC = () => {
         // real stored unit count, so it's sent back unchanged, not re-converted.
         currentStock: isEdit
           ? parseInt(form.currentStock, 10)
-          : (parseInt(form.currentStock, 10) || 0) * unitsPerPack,
+          // Plus any loose units counted separately from full packs (e.g. 3
+          // strips of 10 + 2 loose tablets = 32, not just 30).
+          : (parseInt(form.currentStock, 10) || 0) * unitsPerPack + (parseInt(form.looseUnits, 10) || 0),
         // Minimum Stock Level is always entered/displayed in packs (see the
         // matching /unitsPerPack conversion when loading it for edit below) —
         // converted to individual units here, the same denomination currentStock
@@ -513,14 +514,13 @@ const MedicineForm: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
-                label="Expiry Date *"
+                label="Expiry Date (optional)"
                 type="date"
                 value={form.expiryDate}
                 onChange={handleChange('expiryDate')}
                 fullWidth
                 InputLabelProps={{ shrink: true }}
-                error={!!errors.expiryDate}
-                helperText={errors.expiryDate ? 'Expiry date is required' : ''}
+                helperText="Leave blank for products with no expiry (e.g. devices, equipment)"
               />
             </Grid>
           </Grid>
@@ -631,15 +631,27 @@ const MedicineForm: React.FC = () => {
                 disabled={isEdit}
               />
               {!isEdit && Number(form.unitsPerPack) > 1 && (
-                <TextField
-                  label="Total Unit Stock"
-                  value={form.currentStock ? Number(form.currentStock) * Number(form.unitsPerPack) : 0}
-                  fullWidth
-                  disabled
-                  size="small"
-                  sx={{ mt: 1.5 }}
-                  helperText={`Auto-calculated: ${form.currentStock || 0} ${form.unitOfMeasure.toLowerCase()}s × ${form.unitsPerPack} — this is what's tracked in inventory`}
-                />
+                <>
+                  <TextField
+                    label={`Loose ${form.unitOfMeasure === 'Strip' ? 'Tablets' : 'Units'} (not in a full ${form.unitOfMeasure})`}
+                    type="number"
+                    value={form.looseUnits}
+                    onChange={handleChange('looseUnits')}
+                    fullWidth
+                    inputProps={{ min: 0 }}
+                    sx={{ mt: 1.5 }}
+                    helperText={`E.g. a cut/partial ${form.unitOfMeasure.toLowerCase()} counted separately from full ${form.unitOfMeasure.toLowerCase()}s above`}
+                  />
+                  <TextField
+                    label="Total Unit Stock"
+                    value={Number(form.currentStock || 0) * Number(form.unitsPerPack) + Number(form.looseUnits || 0)}
+                    fullWidth
+                    disabled
+                    size="small"
+                    sx={{ mt: 1.5 }}
+                    helperText={`Auto-calculated: (${form.currentStock || 0} ${form.unitOfMeasure.toLowerCase()}s × ${form.unitsPerPack}) + ${form.looseUnits || 0} loose — this is what's tracked in inventory`}
+                  />
+                </>
               )}
             </Grid>
             <Grid item xs={12} md={6}>

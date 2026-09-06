@@ -406,7 +406,8 @@ const Reports: React.FC = () => {
         <>
           <Grid container spacing={2} mb={3}>
             {[
-              { label: 'Total Revenue', value: formatCurrency(summary.totalRevenue || 0) },
+              { label: 'Net Revenue', value: formatCurrency(summary.netRevenue ?? summary.totalRevenue ?? 0) },
+              { label: 'Returns', value: formatCurrency(summary.totalReturns || 0) },
               { label: 'Total Bills', value: summary.totalBills || 0 },
               { label: 'GST Collected', value: formatCurrency(summary.gstAmount || 0) },
               { label: 'Discounts', value: formatCurrency(summary.totalDiscount || 0) },
@@ -447,15 +448,16 @@ const Reports: React.FC = () => {
 
     if (type === 'monthly') {
       const summary = d.summary as Record<string, number>;
-      const daily = d.dailyBreakdown as Array<{ day: number; revenue: number; bills: number }>;
+      const daily = d.dailyBreakdown as Array<{ day: number; revenue: number; returns: number; netRevenue: number; bills: number }>;
       return (
         <>
           <Grid container spacing={2} mb={3}>
             {[
-              { label: 'Monthly Revenue', value: formatCurrency(summary?.totalRevenue || 0) },
+              { label: 'Net Monthly Revenue', value: formatCurrency(summary?.netRevenue ?? summary?.totalRevenue ?? 0) },
+              { label: 'Returns', value: formatCurrency(summary?.totalReturns || 0) },
               { label: 'Total Bills', value: summary?.totalBills || 0 },
             ].map(({ label, value }) => (
-              <Grid item xs={6} key={label}>
+              <Grid item xs={4} key={label}>
                 <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2, textAlign: 'center' }}>
                   <Typography variant="caption" color="text.secondary">{label}</Typography>
                   <Typography variant="h6" fontWeight={700}>{value}</Typography>
@@ -464,12 +466,12 @@ const Reports: React.FC = () => {
             ))}
           </Grid>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={daily?.map((d) => ({ day: d.day, revenue: d.revenue }))}>
+            <BarChart data={daily?.map((d) => ({ day: d.day, netRevenue: d.netRevenue }))}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="day" />
               <YAxis tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v) => [formatCurrency(v as number), 'Revenue']} />
-              <Bar dataKey="revenue" fill="#1976d2" radius={[4,4,0,0]} />
+              <Tooltip formatter={(v) => [formatCurrency(v as number), 'Net Revenue']} />
+              <Bar dataKey="netRevenue" fill="#1976d2" radius={[4,4,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </>
@@ -527,13 +529,16 @@ const Reports: React.FC = () => {
     if (type === 'profit') {
       const summary = (d.summary || {}) as Record<string, number>;
       const totalRevenue = summary.totalRevenue || 0;
+      const netRevenue = summary.netRevenue ?? totalRevenue;
+      const totalReturns = summary.totalReturns || 0;
       const totalCost = summary.totalCost || 0;
       const grossProfit = summary.grossProfit || 0;
       const profitMargin = summary.profitMargin || 0;
       return (
         <Grid container spacing={2}>
           {[
-            { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+            { label: 'Net Revenue', value: formatCurrency(netRevenue) },
+            { label: 'Returns', value: formatCurrency(totalReturns) },
             { label: 'Total Cost', value: formatCurrency(totalCost) },
             { label: 'Gross Profit', value: formatCurrency(grossProfit) },
             { label: 'Profit Margin', value: `${profitMargin.toFixed(1)}%` },
@@ -620,9 +625,10 @@ const Reports: React.FC = () => {
             {[
               { label: 'Doctors Referring', value: summary?.totalDoctors || 0 },
               { label: 'Referred Bills', value: summary?.totalReferredBills || 0 },
-              { label: 'Referred Revenue', value: formatCurrency(summary?.totalReferredRevenue || 0) },
+              { label: 'Net Referred Revenue', value: formatCurrency(summary?.netReferredRevenue ?? summary?.totalReferredRevenue ?? 0) },
+              { label: 'Returns', value: formatCurrency(summary?.totalReturns || 0) },
             ].map(({ label, value }) => (
-              <Grid item xs={12} sm={4} key={label}>
+              <Grid item xs={6} sm={3} key={label}>
                 <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2, textAlign: 'center' }}>
                   <Typography variant="caption" color="text.secondary">{label}</Typography>
                   <Typography variant="h6" fontWeight={700}>{value}</Typography>
@@ -635,7 +641,8 @@ const Reports: React.FC = () => {
               <TableRow>
                 <TableCell>Doctor</TableCell>
                 <TableCell align="right">Bills Referred</TableCell>
-                <TableCell align="right">Revenue</TableCell>
+                <TableCell align="right">Returns</TableCell>
+                <TableCell align="right">Net Revenue</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -643,12 +650,13 @@ const Reports: React.FC = () => {
                 <TableRow key={i}>
                   <TableCell>{row.doctorName as string}</TableCell>
                   <TableCell align="right">{row.totalBills as number}</TableCell>
-                  <TableCell align="right">{formatCurrency(row.totalRevenue as number)}</TableCell>
+                  <TableCell align="right">{formatCurrency((row.totalReturns as number) || 0)}</TableCell>
+                  <TableCell align="right">{formatCurrency((row.netRevenue ?? row.totalRevenue) as number)}</TableCell>
                 </TableRow>
               ))}
               {(!byDoctor || byDoctor.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.disabled' }}>
+                  <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.disabled' }}>
                     No doctor-referred sales in the selected date range.
                   </TableCell>
                 </TableRow>
@@ -669,9 +677,10 @@ const Reports: React.FC = () => {
               { label: 'HSN Codes', value: summary?.totalHsnCodes || 0 },
               { label: 'Taxable Value', value: formatCurrency(summary?.totalTaxableValue || 0) },
               { label: 'Total Tax (CGST+SGST)', value: formatCurrency(summary?.totalTax || 0) },
-              { label: 'Total Invoice Value', value: formatCurrency(summary?.totalInvoiceValue || 0) },
+              { label: 'Total Invoice Value (net of returns)', value: formatCurrency(summary?.totalInvoiceValue || 0) },
+              { label: 'Returns', value: formatCurrency(summary?.totalReturns || 0) },
             ].map(({ label, value }) => (
-              <Grid item xs={6} sm={3} key={label}>
+              <Grid item xs={6} sm={4} key={label}>
                 <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2, textAlign: 'center' }}>
                   <Typography variant="caption" color="text.secondary">{label}</Typography>
                   <Typography variant="h6" fontWeight={700}>{value}</Typography>

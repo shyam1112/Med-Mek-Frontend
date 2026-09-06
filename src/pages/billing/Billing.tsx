@@ -3,9 +3,9 @@ import {
   Box, Grid, Card, CardContent, TextField, InputAdornment, Typography,
   Button, IconButton, Table, TableBody, TableCell, TableHead, TableRow,
   Divider, MenuItem, Autocomplete, CircularProgress, Dialog, DialogTitle,
-  DialogContent, DialogActions, ToggleButton, ToggleButtonGroup, Chip,
+  DialogContent, DialogActions, ToggleButton, ToggleButtonGroup, Chip, Tooltip,
 } from '@mui/material';
-import { Search, Delete, Save, Person, Print, CheckCircle, AddCircleOutline } from '@mui/icons-material';
+import { Search, Delete, Save, Person, Print, CheckCircle, AddCircleOutline, Close } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import QRCode from 'qrcode';
 import api from '../../api';
@@ -33,12 +33,11 @@ interface Medicine {
 // never by whole pack — for a medicine with unitsPerPack===1 (the default,
 // unchanged for every existing medicine) this is identical to the pack price.
 const unitPriceOf = (medicine: Medicine): number => medicine.sellingPrice / (medicine.unitsPerPack || 1);
-// unitOfMeasure names the *pack* (Strip/Bottle/Box...), which is only an
-// accurate label for what's being sold when unitsPerPack is 1 (one unit ==
-// one whole pack) — once a pack is split into individual units, there's no
-// separate name for "one tablet out of a strip," so just say "unit".
-const unitLabel = (medicine: Medicine): string =>
-  (medicine.unitsPerPack || 1) > 1 ? 'unit' : (medicine.unitOfMeasure || 'Strip').toLowerCase();
+// Always shown as a generic "unit" on the billing screen — regardless of
+// unitsPerPack — so the price label reads consistently across every
+// medicine (tablet, syrup, bottle...) instead of switching between "/strip",
+// "/bottle" etc. based on each medicine's own pack configuration.
+const unitLabel = (): string => 'unit';
 
 const SCHEDULE_COLORS: Record<string, 'warning' | 'error'> = { H: 'warning', H1: 'warning', X: 'error' };
 
@@ -103,6 +102,9 @@ const Billing: React.FC = () => {
   const [upiQr, setUpiQr] = useState('');
   const customerTimer = useRef<ReturnType<typeof setTimeout>>();
   const doctorTimer = useRef<ReturnType<typeof setTimeout>>();
+  const qtyInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const prevItemsLengthRef = useRef(0);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const { enqueueSnackbar } = useSnackbar();
 
   // Static UPI deep link, no gateway/API key — the pharmacist still manually
@@ -149,6 +151,45 @@ const Billing: React.FC = () => {
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A newly-added medicine is always appended as the last row, but the search
+  // box sits above the table in the DOM — so hitting Tab after adding would
+  // otherwise jump focus to row 1's Qty field instead of the row just added.
+  // Auto-focusing the new row's Qty field keeps fast search→Enter→Tab entry
+  // moving top to bottom instead of bouncing back to the first medicine.
+  useEffect(() => {
+    if (items.length > prevItemsLengthRef.current) {
+      const idx = items.length - 1;
+      requestAnimationFrame(() => {
+        const el = qtyInputRefs.current[idx];
+        if (el) {
+          el.focus();
+          el.select();
+        }
+      });
+    }
+    prevItemsLengthRef.current = items.length;
+  }, [items.length]);
+
+  // Lets the keyboard "Delete" key remove the last-added bill row without
+  // reaching for the mouse — matches the fast search→Enter→Tab entry flow.
+  // Skipped while typing in a free-text field (customer/doctor/notes) so it
+  // doesn't hijack normal text editing there; the per-row Qty/GST%/Discount
+  // fields are type="number", which is exactly where focus lands right after
+  // adding an item, so the shortcut works from there.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete') return;
+      const target = e.target as HTMLElement;
+      const isFreeTextField =
+        target.tagName === 'TEXTAREA' ||
+        (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'number');
+      if (isFreeTextField) return;
+      setItems((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev));
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   const searchCustomers = useCallback((q: string) => {
@@ -344,70 +385,19 @@ const Billing: React.FC = () => {
       <Grid container spacing={2.5}>
         {/* Left: medicine search + cart */}
         <Grid item xs={12} lg={8}>
-          <Card sx={{ mb: 2.5 }}>
-            <CardContent>
-              <Autocomplete
-                freeSolo
-                options={searchResults}
-                getOptionLabel={(o) => typeof o === 'string' ? o : `${o.name} (${o.batchNumber})`}
-                inputValue={searchQuery}
-                onInputChange={(_, v, reason) => { if (reason === 'input') { setSearchQuery(v); handleSearch(v); } }}
-                onChange={(_, v) => { if (v && typeof v !== 'string') addItem(v as Medicine); }}
-                onOpen={() => { if (searchResults.length === 0) handleSearch(searchQuery); }}
-                loading={searchLoading}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="Search medicine by name or barcode..."
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <Search />
-                        </InputAdornment>
-                      ),
-                      endAdornment: (
-                        <>
-                          {searchLoading && <CircularProgress size={16} />}
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
-                    }}
-                  />
-                )}
-                renderOption={(props, option) => (
-                  <Box component="li" {...props} key={(option as Medicine)._id}>
-                    <Box sx={{ flex: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <Typography variant="body2" fontWeight={600}>{(option as Medicine).name}</Typography>
-                        {(option as Medicine).scheduleClass && (option as Medicine).scheduleClass !== 'None' && (
-                          <Chip
-                            label={`Rx · Sch. ${(option as Medicine).scheduleClass}`}
-                            size="small"
-                            color={SCHEDULE_COLORS[(option as Medicine).scheduleClass as string]}
-                            sx={{ height: 18, fontSize: 10 }}
-                          />
-                        )}
-                      </Box>
-                      <Typography variant="caption" color="text.secondary">
-                        {(option as Medicine).genericName} • Batch: {(option as Medicine).batchNumber} •
-                        Stock: {(option as Medicine).currentStock} {unitLabel(option as Medicine)}
-                        {(option as Medicine).location ? ` • Loc: ${(option as Medicine).location}` : ''}
-                      </Typography>
-                    </Box>
-                    <Typography variant="body2" fontWeight={700} color="primary">
-                      ₹{unitPriceOf(option as Medicine).toFixed(2)}/{unitLabel(option as Medicine)}
-                    </Typography>
-                  </Box>
-                )}
-              />
-            </CardContent>
-          </Card>
-
           {/* Bill items table */}
           <Card>
             <CardContent>
-              <Typography variant="subtitle2" fontWeight={700} mb={1.5}>Bill Items</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                <Typography variant="subtitle2" fontWeight={700}>Bill Items</Typography>
+                <Button
+                  size="small"
+                  startIcon={<AddCircleOutline />}
+                  onClick={() => searchInputRef.current?.focus()}
+                >
+                  Add Item
+                </Button>
+              </Box>
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -428,13 +418,13 @@ const Billing: React.FC = () => {
                       <TableCell>
                         <Typography variant="body2" fontWeight={600}>{item.medicine.name}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Batch: {item.medicine.batchNumber} | Avl: {item.medicine.currentStock} {unitLabel(item.medicine)}
+                          Batch: {item.medicine.batchNumber} | Avl: {item.medicine.currentStock} {unitLabel()}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
                         ₹{item.sellingPrice.toFixed(2)}
                         <Typography variant="caption" color="text.secondary" display="block">
-                          /{unitLabel(item.medicine)}
+                          /{unitLabel()}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">
@@ -442,6 +432,7 @@ const Billing: React.FC = () => {
                           type="number"
                           value={item.quantity}
                           onChange={(e) => updateItem(idx, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
+                          inputRef={(el) => { qtyInputRefs.current[idx] = el; }}
                           inputProps={{ min: 1, max: item.medicine.currentStock, style: { textAlign: 'center', width: 55 } }}
                           size="small"
                         />
@@ -473,6 +464,7 @@ const Billing: React.FC = () => {
                                 <Box
                                   component="button"
                                   type="button"
+                                  tabIndex={-1}
                                   onClick={() => toggleItemDiscountMode(idx)}
                                   title="Toggle % / ₹"
                                   sx={{
@@ -492,16 +484,97 @@ const Billing: React.FC = () => {
                         <Typography fontWeight={700}>₹{item.total.toFixed(2)}</Typography>
                       </TableCell>
                       <TableCell>
-                        <IconButton size="small" color="error" onClick={() => removeItem(idx)}>
+                        <IconButton size="small" color="error" tabIndex={-1} onClick={() => removeItem(idx)}>
                           <Delete fontSize="small" />
                         </IconButton>
                       </TableCell>
                     </TableRow>
                   ))}
+                  {/* Always-present search row — the next medicine is added straight
+                      into the table, so once quantity/GST/discount are filled in via
+                      Tab, the very next Tab lands right back here for the next item.
+                      Never becomes a BillItem itself until a real medicine is picked,
+                      so leaving it (e.g. tabbing away to Customer Details) can never
+                      leave a blank line item in the saved bill. */}
+                  <TableRow>
+                    <TableCell sx={{ color: 'text.disabled' }}>{items.length + 1}</TableCell>
+                    <TableCell colSpan={6}>
+                      <Autocomplete
+                        freeSolo
+                        size="small"
+                        options={searchResults}
+                        getOptionLabel={(o) => typeof o === 'string' ? o : `${o.name} (${o.batchNumber})`}
+                        inputValue={searchQuery}
+                        onInputChange={(_, v, reason) => { if (reason === 'input') { setSearchQuery(v); handleSearch(v); } }}
+                        onChange={(_, v) => { if (v && typeof v !== 'string') addItem(v as Medicine); }}
+                        onOpen={() => { if (searchResults.length === 0) handleSearch(searchQuery); }}
+                        loading={searchLoading}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            inputRef={searchInputRef}
+                            placeholder="Search medicine by name or barcode..."
+                            InputProps={{
+                              ...params.InputProps,
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Search fontSize="small" />
+                                </InputAdornment>
+                              ),
+                              endAdornment: (
+                                <>
+                                  {searchLoading && <CircularProgress size={16} />}
+                                  {params.InputProps.endAdornment}
+                                </>
+                              ),
+                            }}
+                          />
+                        )}
+                        renderOption={(props, option) => (
+                          <Box component="li" {...props} key={(option as Medicine)._id}>
+                            <Box sx={{ flex: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                <Typography variant="body2" fontWeight={600}>{(option as Medicine).name}</Typography>
+                                {(option as Medicine).scheduleClass && (option as Medicine).scheduleClass !== 'None' && (
+                                  <Chip
+                                    label={`Rx · Sch. ${(option as Medicine).scheduleClass}`}
+                                    size="small"
+                                    color={SCHEDULE_COLORS[(option as Medicine).scheduleClass as string]}
+                                    sx={{ height: 18, fontSize: 10 }}
+                                  />
+                                )}
+                              </Box>
+                              <Typography variant="caption" color="text.secondary">
+                                {(option as Medicine).genericName} • Batch: {(option as Medicine).batchNumber} •
+                                Stock: {(option as Medicine).currentStock} {unitLabel()}
+                                {(option as Medicine).location ? ` • Loc: ${(option as Medicine).location}` : ''}
+                              </Typography>
+                            </Box>
+                            <Typography variant="body2" fontWeight={700} color="primary">
+                              ₹{unitPriceOf(option as Medicine).toFixed(2)}/{unitLabel()}
+                            </Typography>
+                          </Box>
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {searchQuery && (
+                        <Tooltip title="Clear search">
+                          <IconButton
+                            size="small"
+                            tabIndex={-1}
+                            onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                          >
+                            <Close fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
                   {items.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} align="center" sx={{ py: 6, color: 'text.disabled' }}>
-                        Search and add medicines above
+                      <TableCell colSpan={8} align="center" sx={{ py: 3, color: 'text.disabled' }}>
+                        No medicines added yet — search above to add the first one
                       </TableCell>
                     </TableRow>
                   )}

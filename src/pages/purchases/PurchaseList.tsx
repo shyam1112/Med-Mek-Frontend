@@ -261,7 +261,6 @@ const PurchaseList: React.FC = () => {
       if (!it.isNew && !it.medicineId) { enqueueSnackbar('Select a medicine from dropdown for all items', { variant: 'warning' }); return; }
       if (it.isNew && !it.newMedicineName.trim()) { enqueueSnackbar('Medicine name is required', { variant: 'warning' }); return; }
       if (it.isNew && !it.sellingPrice) { enqueueSnackbar('Selling price (MRP) is required for new medicines', { variant: 'warning' }); return; }
-      if (it.isNew && !it.expiryDate) { enqueueSnackbar('Expiry date is required for new medicines', { variant: 'warning' }); return; }
     }
     setSaving(true);
     try {
@@ -530,7 +529,7 @@ const PurchaseList: React.FC = () => {
                   </Grid>
                   <Grid item xs={6} sm={3}>
                     <TextField
-                      label={item.isNew ? 'Expiry Date *' : 'Expiry Date (optional)'}
+                      label="Expiry Date (optional)"
                       type="date" value={item.expiryDate} onChange={(e) => updateItem(idx, 'expiryDate', e.target.value)}
                       fullWidth size="small" InputLabelProps={{ shrink: true }}
                     />
