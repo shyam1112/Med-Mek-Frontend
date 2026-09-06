@@ -28,6 +28,8 @@ interface Medicine {
   barcode: string;
   scheduleClass?: 'None' | 'H' | 'H1' | 'X';
   location?: string;
+  unitOfMeasure?: string;
+  unitsPerPack?: number;
 }
 
 const SCHEDULE_COLORS: Record<string, 'warning' | 'error'> = { H: 'warning', H1: 'warning', X: 'error' };
@@ -86,10 +88,13 @@ const MedicineList: React.FC = () => {
     }
   };
 
+  const stockUnitLabel = (m: Medicine) =>
+    (m.unitsPerPack || 1) > 1 ? 'units' : `${(m.unitOfMeasure || 'Strip').toLowerCase()}s`;
+
   const getStockChip = (m: Medicine) => {
     if (m.currentStock === 0) return <Chip label="Out of Stock" color="error" size="small" />;
-    if (m.currentStock <= m.minimumStockLevel) return <Chip label={`${m.currentStock} (Low)`} color="warning" size="small" />;
-    return <Chip label={m.currentStock} color="success" size="small" />;
+    if (m.currentStock <= m.minimumStockLevel) return <Chip label={`${m.currentStock} ${stockUnitLabel(m)} (Low)`} color="warning" size="small" />;
+    return <Chip label={`${m.currentStock} ${stockUnitLabel(m)}`} color="success" size="small" />;
   };
 
   const getExpiryChip = (dateStr?: string) => {

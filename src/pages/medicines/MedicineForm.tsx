@@ -76,6 +76,11 @@ const MedicineForm: React.FC = () => {
   const [catalogOptions, setCatalogOptions] = useState<CatalogItem[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const catalogTimer = useRef<ReturnType<typeof setTimeout>>();
+  // The medicine's currentStock (in individual units) at load time — compared
+  // against the submitted value to detect a real stock change, so editing here
+  // logs a proper stock-adjustment transaction instead of silently overwriting
+  // the number with no audit trail.
+  const originalStockRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -83,12 +88,20 @@ const MedicineForm: React.FC = () => {
     api.get(`/medicines/${id}`)
       .then(({ data }) => {
         const m = data.data;
+        const unitsPerPack: number = m.unitsPerPack || 1;
+        originalStockRef.current = m.currentStock;
         setForm({
           name: m.name, genericName: m.genericName || '', category: m.category,
           manufacturer: m.manufacturer || '', batchNumber: m.batchNumber,
           expiryDate: m.expiryDate ? m.expiryDate.split('T')[0] : '',
           purchasePrice: String(m.purchasePrice), sellingPrice: String(m.sellingPrice),
-          gstPercentage: String(m.gstPercentage), currentStock: String(m.currentStock), looseUnits: '0',
+          gstPercentage: String(m.gstPercentage),
+          // Shown/edited as full packs + any leftover loose units (matching how
+          // it's entered when creating a medicine) rather than the raw
+          // individual-unit total, which reads as a confusing "strip count"
+          // otherwise (e.g. 1000 tablets looking like "1000 strips").
+          currentStock: String(Math.floor(m.currentStock / unitsPerPack)),
+          looseUnits: String(m.currentStock % unitsPerPack),
           // Stored in individual units — shown here in packs (matching how
           // it's entered), converted back to units on save below.
           minimumStockLevel: String(Math.round(m.minimumStockLevel / (m.unitsPerPack || 1))),
@@ -168,19 +181,16 @@ const MedicineForm: React.FC = () => {
     setSaving(true);
     try {
       const unitsPerPack = parseInt(form.unitsPerPack, 10) || 1;
+      // Full packs entered + any loose units counted separately (e.g. 3 strips
+      // of 10 + 2 loose tablets = 32, not just 30) — same formula whether
+      // creating a medicine or editing one, so both screens behave the same way.
+      const newStockUnits = (parseInt(form.currentStock, 10) || 0) * unitsPerPack + (parseInt(form.looseUnits, 10) || 0);
+
       const payload = {
         ...form,
         purchasePrice: parseFloat(form.purchasePrice),
         sellingPrice: parseFloat(form.sellingPrice),
         gstPercentage: parseInt(form.gstPercentage, 10),
-        // Current Stock is only ever entered (in packs) when creating a new
-        // medicine — in edit mode the field is disabled and already holds the
-        // real stored unit count, so it's sent back unchanged, not re-converted.
-        currentStock: isEdit
-          ? parseInt(form.currentStock, 10)
-          // Plus any loose units counted separately from full packs (e.g. 3
-          // strips of 10 + 2 loose tablets = 32, not just 30).
-          : (parseInt(form.currentStock, 10) || 0) * unitsPerPack + (parseInt(form.looseUnits, 10) || 0),
         // Minimum Stock Level is always entered/displayed in packs (see the
         // matching /unitsPerPack conversion when loading it for edit below) —
         // converted to individual units here, the same denomination currentStock
@@ -188,12 +198,26 @@ const MedicineForm: React.FC = () => {
         minimumStockLevel: (parseInt(form.minimumStockLevel, 10) || 0) * unitsPerPack,
         unitsPerPack,
       };
+      delete (payload as Partial<typeof payload>).looseUnits;
 
       if (isEdit) {
+        // Stock is never sent through the plain medicine-update endpoint —
+        // it goes through the same /inventory/adjust route the Inventory
+        // module uses, so changing it here still logs a proper stock
+        // transaction (previous/new stock, audit trail) instead of silently
+        // overwriting the number.
+        delete (payload as Partial<typeof payload>).currentStock;
         await api.put(`/medicines/${id}`, payload);
+        if (newStockUnits !== originalStockRef.current) {
+          await api.post('/inventory/adjust', {
+            medicineId: id,
+            newQuantity: newStockUnits,
+            notes: 'Adjusted via Edit Medicine',
+          });
+        }
         enqueueSnackbar('Medicine updated successfully', { variant: 'success' });
       } else {
-        await api.post('/medicines', payload);
+        await api.post('/medicines', { ...payload, currentStock: newStockUnits });
         enqueueSnackbar('Medicine created successfully', { variant: 'success' });
       }
       navigate('/medicines');
@@ -620,17 +644,16 @@ const MedicineForm: React.FC = () => {
                 value={form.currentStock}
                 onChange={handleChange('currentStock')}
                 fullWidth
-                inputProps={{ min: 0, step: Number(form.unitsPerPack) > 1 ? 1 : 1 }}
+                inputProps={{ min: 0 }}
                 helperText={
-                  isEdit
-                    ? 'Use Inventory module to adjust stock'
-                    : Number(form.unitsPerPack) > 1
-                      ? `Enter how many ${form.unitOfMeasure.toLowerCase()}s you have`
+                  Number(form.unitsPerPack) > 1
+                    ? `Enter how many ${form.unitOfMeasure.toLowerCase()}s you have`
+                    : isEdit
+                      ? 'Changing this logs a stock adjustment, same as the Inventory module'
                       : ''
                 }
-                disabled={isEdit}
               />
-              {!isEdit && Number(form.unitsPerPack) > 1 && (
+              {Number(form.unitsPerPack) > 1 && (
                 <>
                   <TextField
                     label={`Loose ${form.unitOfMeasure === 'Strip' ? 'Tablets' : 'Units'} (not in a full ${form.unitOfMeasure})`}
