@@ -10,6 +10,7 @@ export interface InvoiceItem {
   sellingPrice: number;
   gstPercentage: number;
   discount: number;
+  discountPercent?: number;
   totalAmount: number;
 }
 
@@ -26,6 +27,7 @@ export interface InvoiceData {
   cgstAmount: number;
   sgstAmount: number;
   discountAmount: number;
+  discountPercent?: number;
   totalAmount: number;
   paymentMode: string;
 }
@@ -59,12 +61,16 @@ export const printInvoice = (
       <td class="r">${item.quantity}</td>
       <td class="r">₹${item.sellingPrice.toFixed(2)}</td>
       <td class="r">${item.gstPercentage}%</td>
+      <td class="r">${item.discountPercent ? `-${item.discountPercent}%` : item.discount > 0 ? `-₹${item.discount.toFixed(2)}` : '—'}</td>
       <td class="r">₹${item.totalAmount.toFixed(2)}</td>
     </tr>
   `).join('');
 
-  const discountRow = bill.discountAmount > 0
-    ? `<tr><td>Discount</td><td class="r" style="color:#d32f2f">-₹${bill.discountAmount.toFixed(2)}</td></tr>`
+  const discountDisplay = bill.discountPercent
+    ? `-${bill.discountPercent}%`
+    : `-₹${bill.discountAmount.toFixed(2)}`;
+  const discountPart = bill.discountAmount > 0
+    ? `Discount: <span style="color:#d32f2f">${discountDisplay}</span> &nbsp;|&nbsp; `
     : '';
 
   win.document.write(`<!DOCTYPE html>
@@ -74,39 +80,45 @@ export const printInvoice = (
   <title>Bill ${bill.billNumber}</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 16px; max-width: 800px; margin: auto; }
-    .header { text-align:center; }
-    .store-name { font-size:22px; font-weight:700; letter-spacing:0.5px; }
-    .store-sub { font-size:12px; color:#333; margin-top:2px; }
-    .invoice-title { text-align:center; font-size:13px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-top:8px; }
-    .solid { border-top:2px solid #000; margin:8px 0; }
-    .dashed { border-top:1px dashed #999; margin:8px 0; }
-    .meta-grid { display:flex; justify-content:space-between; font-size:12px; margin:3px 0; }
+    body { font-family: Arial, sans-serif; font-size: 10px; color: #000; padding: 10px; max-width: 800px; margin: auto; }
+    .header-row { display:flex; justify-content:space-between; align-items:flex-start; }
+    .header-side { font-size:10px; color:#333; width:180px; }
+    .header-side.right { text-align:right; }
+    .header-center { flex:1; text-align:center; }
+    .store-name { font-size:16px; font-weight:700; letter-spacing:0.5px; }
+    .store-sub { font-size:10px; color:#333; margin-top:1px; }
+    .invoice-title { text-align:center; font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; margin-top:4px; }
+    .solid { border-top:1.5px solid #000; margin:4px 0; }
+    .dashed { border-top:1px dashed #999; margin:4px 0; }
+    .meta-grid { display:flex; justify-content:space-between; font-size:10px; margin:2px 0; }
     .meta-grid b { font-weight:700; }
-    .customer-box { display:flex; justify-content:space-between; font-size:12px; margin:4px 0; gap: 16px; }
-    table { width:100%; border-collapse:collapse; margin:8px 0; }
-    th { font-size:10.5px; text-align:left; padding:5px 4px; border-bottom:1.5px solid #000; border-top:1.5px solid #000; background:#f5f5f5; }
-    td { font-size:11px; padding:5px 4px; vertical-align:top; border-bottom:1px solid #eee; }
+    .customer-box { display:flex; justify-content:space-between; font-size:10px; margin:2px 0; gap: 10px; }
+    table { width:100%; border-collapse:collapse; margin:4px 0; }
+    th { font-size:9px; text-align:left; padding:3px; border-bottom:1.5px solid #000; border-top:1.5px solid #000; background:#f5f5f5; }
+    td { font-size:9.5px; padding:3px; vertical-align:top; border-bottom:1px solid #eee; }
     .r { text-align:right; }
-    .totals-table { width:280px; margin-left:auto; }
-    .totals-table td { padding:3px 4px; font-size:12px; }
-    .total-row td { font-weight:700; font-size:15px; border-top:1.5px solid #000; padding-top:6px; }
-    .footer { text-align:center; margin-top:16px; font-size:10.5px; color:#555; }
-    .payment-badge { display:inline-block; border:1px solid #000; border-radius:3px; padding:1px 8px; font-weight:700; font-size:11px; }
+    .totals-line { text-align:right; font-size:10px; color:#333; margin:4px 0 2px; }
+    .totals-table { width:220px; margin-left:auto; }
+    .totals-table td { padding:1.5px 4px; font-size:10px; }
+    .total-row td { font-weight:700; font-size:12.5px; border-top:1.5px solid #000; padding-top:3px; }
+    .footer { text-align:center; margin-top:8px; font-size:9px; color:#555; }
+    .payment-badge { display:inline-block; border:1px solid #000; border-radius:3px; padding:1px 6px; font-weight:700; font-size:9.5px; }
     @media print {
-      @page { size: A4; margin: 12mm; }
+      @page { size: A4; margin: 8mm; }
       body { max-width:100%; padding:0; }
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="store-name">${storeName || 'MedMek Pharmacy'}</div>
-    ${storeAddress ? `<div class="store-sub">${storeAddress}</div>` : ''}
-    <div class="store-sub">
-      ${storeGST ? `GSTIN: ${storeGST}` : ''}${storeGST && storeDLNo ? ' &nbsp;|&nbsp; ' : ''}${storeDLNo ? `D.L. No: ${storeDLNo}` : ''}
+  <div class="header-row">
+    <div class="header-side">
+      ${storeGST ? `GSTIN: ${storeGST}` : ''}${storeGST && storeDLNo ? '<br/>' : ''}${storeDLNo ? `D.L. No: ${storeDLNo}` : ''}
     </div>
-    <div class="invoice-title">Tax Invoice</div>
+    <div class="header-center">
+      <div class="store-name">${storeName || 'MedMek Pharmacy'}</div>
+      <div class="invoice-title">Tax Invoice</div>
+    </div>
+    <div class="header-side right">${storeAddress || ''}</div>
   </div>
   <div class="solid"></div>
   <div class="meta-grid"><span>Bill No: <b>${bill.billNumber}</b></span><span>Date: <b>${dateStr}</b></span></div>
@@ -131,16 +143,16 @@ export const printInvoice = (
         <th class="r">Qty</th>
         <th class="r">MRP</th>
         <th class="r">GST%</th>
+        <th class="r">Disc</th>
         <th class="r">Amount</th>
       </tr>
     </thead>
     <tbody>${itemRows}</tbody>
   </table>
+  <div class="totals-line">
+    ${discountPart}SGST: ₹${bill.sgstAmount.toFixed(2)} &nbsp;|&nbsp; CGST: ₹${bill.cgstAmount.toFixed(2)} &nbsp;|&nbsp; Subtotal: ₹${bill.subtotal.toFixed(2)}
+  </div>
   <table class="totals-table">
-    <tr><td>Subtotal</td><td class="r">₹${bill.subtotal.toFixed(2)}</td></tr>
-    <tr><td>CGST</td><td class="r">₹${bill.cgstAmount.toFixed(2)}</td></tr>
-    <tr><td>SGST</td><td class="r">₹${bill.sgstAmount.toFixed(2)}</td></tr>
-    ${discountRow}
     <tr class="total-row"><td>Grand Total</td><td class="r">₹${bill.totalAmount.toFixed(2)}</td></tr>
   </table>
   <div class="dashed"></div>

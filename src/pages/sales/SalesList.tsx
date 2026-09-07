@@ -23,6 +23,7 @@ interface SaleItem {
   sellingPrice: number;
   gstPercentage: number;
   discount: number;
+  discountPercent?: number;
   totalAmount: number;
 }
 
@@ -40,6 +41,7 @@ interface Sale {
   cgstAmount: number;
   sgstAmount: number;
   discountAmount: number;
+  discountPercent?: number;
   totalAmount: number;
   totalReturned: number;
   paymentMode: string;

@@ -261,7 +261,7 @@ const Billing: React.FC = () => {
         medicine,
         quantity: 1,
         sellingPrice: unitPrice,
-        discountMode: 'amount',
+        discountMode: 'percent',
         discountValue: 0,
         gstPercentage: medicine.gstPercentage,
         total: unitPrice * (1 + medicine.gstPercentage / 100),
@@ -351,12 +351,18 @@ const Billing: React.FC = () => {
         doctorName,
         paymentMode,
         discountAmount: extraDiscountAmount,
+        // Display hint only — lets the invoice show "10%" instead of the
+        // rupee equivalent; the discount above is always the rupee amount.
+        discountPercent: extraDiscountMode === 'percent' && extraDiscountValue > 0 ? extraDiscountValue : undefined,
         cgstAmount: round2(cgstAmount),
         sgstAmount: round2(sgstAmount),
         items: items.map((i) => ({
           medicineId: i.medicine._id,
           quantity: i.quantity,
           discount: getItemDiscountAmount(i),
+          // Display hint only — lets the invoice show "10%" instead of the
+          // rupee equivalent; the actual discount above is always the rupee amount.
+          discountPercent: i.discountMode === 'percent' && i.discountValue > 0 ? i.discountValue : undefined,
         })),
       };
       const { data } = await api.post('/billing', payload);
@@ -378,6 +384,12 @@ const Billing: React.FC = () => {
   const handleNewBill = () => {
     setSavedBill(null);
     resetForm();
+    // The success screen is a MUI Dialog, which traps focus while open and
+    // restores it to the triggering button once closed — that restoration
+    // happens after the dialog's own exit transition, so focusing the search
+    // box has to wait past it (a single animation frame fires too early and
+    // loses to MUI's own restore) rather than happen inline here.
+    setTimeout(() => searchInputRef.current?.focus(), 300);
   };
 
   return (
@@ -598,8 +610,12 @@ const Billing: React.FC = () => {
                   filterOptions={(x) => x}
                   inputValue={customerName}
                   onInputChange={(_, val, reason) => {
-                    setCustomerName(val);
+                    // Only a real keystroke should update the name — MUI also
+                    // fires this with reason "reset" right after a selection,
+                    // using getOptionLabel's "Name — Mobile" text, which would
+                    // otherwise clobber the plain name onChange just set below.
                     if (reason === 'input') {
+                      setCustomerName(val);
                       setCustomerId('');
                       searchCustomers(val);
                     }
@@ -611,14 +627,30 @@ const Billing: React.FC = () => {
                       setCustomerMobile(val.mobile);
                       setCustomerAddress(val.address || '');
                       setCustomerOptions([]);
+                    } else if (val === null) {
+                      setCustomerName('');
                     }
                   }}
                   renderOption={(props, opt) => (
                     <Box component="li" {...props} key={(opt as Customer)._id}>
                       <Person sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Box>
+                      <Box sx={{ minWidth: 0 }}>
                         <Typography variant="body2" fontWeight={600}>{(opt as Customer).name}</Typography>
-                        <Typography variant="caption" color="text.secondary">{(opt as Customer).mobile}</Typography>
+                        {(opt as Customer).mobile && (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {(opt as Customer).mobile}
+                          </Typography>
+                        )}
+                        {(opt as Customer).address && (
+                          <Typography
+                            variant="caption"
+                            color="text.disabled"
+                            display="block"
+                            sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}
+                          >
+                            {(opt as Customer).address}
+                          </Typography>
+                        )}
                       </Box>
                     </Box>
                   )}
