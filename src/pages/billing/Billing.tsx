@@ -260,14 +260,20 @@ const Billing: React.FC = () => {
       setItems(updated);
     } else {
       const unitPrice = unitPriceOf(medicine);
+      // 0% on the medicine record usually means the GST rate was never
+      // actually set (e.g. a bulk-imported product with no GST data) rather
+      // than a genuinely tax-exempt item — default the bill line to 5%
+      // instead of silently undercharging tax, but it's still fully editable
+      // per bill either way.
+      const defaultGst = medicine.gstPercentage || 5;
       const newItem: BillItem = {
         medicine,
         quantity: 1,
         sellingPrice: unitPrice,
         discountMode: 'percent',
         discountValue: 0,
-        gstPercentage: medicine.gstPercentage,
-        total: unitPrice * (1 + medicine.gstPercentage / 100),
+        gstPercentage: defaultGst,
+        total: unitPrice * (1 + defaultGst / 100),
       };
       setItems([...items, newItem]);
     }

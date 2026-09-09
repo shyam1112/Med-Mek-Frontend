@@ -36,15 +36,15 @@ const SCHEDULE_CLASSES: Record<string, string> = {
 };
 
 const INITIAL_FORM = {
-  name: '', genericName: '', category: '', manufacturer: '',
+  name: '', genericName: '', category: 'Other', manufacturer: '',
   batchNumber: '', expiryDate: '', purchasePrice: '', sellingPrice: '',
-  gstPercentage: '12', currentStock: '0', looseUnits: '0', minimumStockLevel: '10', barcode: '',
+  gstPercentage: '5', currentStock: '0', looseUnits: '0', minimumStockLevel: '10', barcode: '',
   dosageForm: '', strength: '', packSize: '',
-  hsnCode: '', scheduleClass: 'None', unitOfMeasure: 'Strip', unitsPerPack: '1',
+  hsnCode: '', scheduleClass: 'None', unitOfMeasure: 'Strip', unitsPerPack: '10',
   storageCondition: '', location: '',
 };
 
-const REQUIRED_FIELDS = ['name', 'category', 'purchasePrice', 'sellingPrice'] as const;
+const REQUIRED_FIELDS = ['name', 'category', 'sellingPrice'] as const;
 type RequiredField = typeof REQUIRED_FIELDS[number];
 
 interface CatalogItem {
@@ -169,7 +169,6 @@ const MedicineForm: React.FC = () => {
     const newErrors: Partial<Record<RequiredField, boolean>> = {
       name: !form.name.trim(),
       category: !form.category,
-      purchasePrice: !form.purchasePrice,
       sellingPrice: !form.sellingPrice,
     };
     setErrors(newErrors);
@@ -188,7 +187,7 @@ const MedicineForm: React.FC = () => {
 
       const payload = {
         ...form,
-        purchasePrice: parseFloat(form.purchasePrice),
+        purchasePrice: parseFloat(form.purchasePrice) || 0,
         sellingPrice: parseFloat(form.sellingPrice),
         gstPercentage: parseInt(form.gstPercentage, 10),
         // Minimum Stock Level is always entered/displayed in packs (see the
@@ -438,7 +437,7 @@ const MedicineForm: React.FC = () => {
                 value={form.strength}
                 onChange={handleChange('strength')}
                 fullWidth
-                placeholder="500mg, 10mg/5ml..."
+                placeholder="ex. 500 mg, 650 mg, 5 gm etc."
                 InputProps={fromCatalog && form.strength ? {
                   endAdornment: <InputAdornment position="end"><AutoFixHigh sx={{ fontSize: 16, color: 'success.main' }} /></InputAdornment>,
                 } : undefined}
@@ -458,7 +457,16 @@ const MedicineForm: React.FC = () => {
                 select
                 label="Unit of Measure"
                 value={form.unitOfMeasure}
-                onChange={handleChange('unitOfMeasure')}
+                onChange={(e) => {
+                  // A strip is almost always 10 tablets in practice — default
+                  // to that the moment Strip is picked, still fully editable.
+                  const newUnit = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    unitOfMeasure: newUnit,
+                    unitsPerPack: newUnit === 'Strip' ? '10' : '1',
+                  }));
+                }}
                 fullWidth
               >
                 {UNIT_OPTIONS.map((u) => <MenuItem key={u} value={u}>{u}</MenuItem>)}
@@ -489,62 +497,64 @@ const MedicineForm: React.FC = () => {
                 helperText="Needed for GST filing"
               />
             </Grid>
-            <Grid item xs={12} md={4}>
-              <TextField
-                select
-                label="Schedule Classification"
-                value={form.scheduleClass}
-                onChange={handleChange('scheduleClass')}
-                fullWidth
-                helperText={SCHEDULE_CLASSES[form.scheduleClass]}
-              >
-                {Object.keys(SCHEDULE_CLASSES).map((s) => <MenuItem key={s} value={s}>{s === 'None' ? 'None' : `Schedule ${s}`}</MenuItem>)}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="Storage Condition"
-                value={form.storageCondition}
-                onChange={handleChange('storageCondition')}
-                fullWidth
-                placeholder="Store below 25°C, protect from light..."
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                label="Rack / Shelf / Bin Location"
-                value={form.location}
-                onChange={handleChange('location')}
-                fullWidth
-                placeholder="Rack 3 - Shelf B, Fridge 1..."
-                helperText="Where this medicine physically sits in the store"
-              />
-            </Grid>
           </Grid>
 
           <Divider sx={{ my: 3 }} />
-          <Typography variant="subtitle2" color="text.secondary" mb={2}>Batch &amp; Expiry</Typography>
+          <Typography variant="subtitle2" color="text.secondary" mb={2}>Stock Settings</Typography>
           <Grid container spacing={2.5}>
             <Grid item xs={12} md={6}>
               <TextField
-                label="Batch Number"
-                value={form.batchNumber}
-                onChange={handleChange('batchNumber')}
+                label={Number(form.unitsPerPack) > 1 ? `Current Stock (in ${form.unitOfMeasure}s)` : 'Current Stock'}
+                type="number"
+                value={form.currentStock}
+                onChange={handleChange('currentStock')}
                 fullWidth
+                inputProps={{ min: 0 }}
+                helperText={
+                  Number(form.unitsPerPack) > 1
+                    ? `Enter how many ${form.unitOfMeasure.toLowerCase()}s you have`
+                    : isEdit
+                      ? 'Changing this logs a stock adjustment, same as the Inventory module'
+                      : ''
+                }
               />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField label="Barcode" value={form.barcode} onChange={handleChange('barcode')} fullWidth />
+              {Number(form.unitsPerPack) > 1 && (
+                <>
+                  <TextField
+                    label={`Loose ${form.unitOfMeasure === 'Strip' ? 'Tablets' : 'Units'} (not in a full ${form.unitOfMeasure})`}
+                    type="number"
+                    value={form.looseUnits}
+                    onChange={handleChange('looseUnits')}
+                    fullWidth
+                    inputProps={{ min: 0 }}
+                    sx={{ mt: 1.5 }}
+                    helperText={`E.g. a cut/partial ${form.unitOfMeasure.toLowerCase()} counted separately from full ${form.unitOfMeasure.toLowerCase()}s above`}
+                  />
+                  <TextField
+                    label="Total Unit Stock"
+                    value={Number(form.currentStock || 0) * Number(form.unitsPerPack) + Number(form.looseUnits || 0)}
+                    fullWidth
+                    disabled
+                    size="small"
+                    sx={{ mt: 1.5 }}
+                    helperText={`Auto-calculated: (${form.currentStock || 0} ${form.unitOfMeasure.toLowerCase()}s × ${form.unitsPerPack}) + ${form.looseUnits || 0} loose — this is what's tracked in inventory`}
+                  />
+                </>
+              )}
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
-                label="Expiry Date (optional)"
-                type="date"
-                value={form.expiryDate}
-                onChange={handleChange('expiryDate')}
+                label={Number(form.unitsPerPack) > 1 ? `Minimum Stock Level (in ${form.unitOfMeasure}s)` : 'Minimum Stock Level'}
+                type="number"
+                value={form.minimumStockLevel}
+                onChange={handleChange('minimumStockLevel')}
                 fullWidth
-                InputLabelProps={{ shrink: true }}
-                helperText="Leave blank for products with no expiry (e.g. devices, equipment)"
+                inputProps={{ min: 0 }}
+                helperText={
+                  Number(form.unitsPerPack) > 1
+                    ? `Alert will trigger below this many ${form.unitOfMeasure.toLowerCase()}s`
+                    : 'Alert will trigger below this level'
+                }
               />
             </Grid>
           </Grid>
@@ -559,14 +569,13 @@ const MedicineForm: React.FC = () => {
           <Grid container spacing={2.5}>
             <Grid item xs={12} md={4}>
               <TextField
-                label={`Purchase Price (₹) per ${form.unitOfMeasure} *`}
+                label={`Purchase Price (₹) per ${form.unitOfMeasure} (optional)`}
                 type="number"
                 value={form.purchasePrice}
                 onChange={handleChange('purchasePrice')}
                 fullWidth
                 inputProps={{ min: 0, step: 0.01 }}
-                error={!!errors.purchasePrice}
-                helperText={errors.purchasePrice ? 'Purchase price is required' : ''}
+                helperText="Leave blank if not known yet — defaults to ₹0, editable later"
               />
             </Grid>
             <Grid item xs={12} md={4}>
@@ -635,61 +644,64 @@ const MedicineForm: React.FC = () => {
           </Grid>
 
           <Divider sx={{ my: 3 }} />
-          <Typography variant="subtitle2" color="text.secondary" mb={2}>Stock Settings</Typography>
+          <Typography variant="subtitle2" color="text.secondary" mb={2}>Batch &amp; Expiry</Typography>
           <Grid container spacing={2.5}>
             <Grid item xs={12} md={6}>
               <TextField
-                label={Number(form.unitsPerPack) > 1 ? `Current Stock (in ${form.unitOfMeasure}s)` : 'Current Stock'}
-                type="number"
-                value={form.currentStock}
-                onChange={handleChange('currentStock')}
+                label="Batch Number"
+                value={form.batchNumber}
+                onChange={handleChange('batchNumber')}
                 fullWidth
-                inputProps={{ min: 0 }}
-                helperText={
-                  Number(form.unitsPerPack) > 1
-                    ? `Enter how many ${form.unitOfMeasure.toLowerCase()}s you have`
-                    : isEdit
-                      ? 'Changing this logs a stock adjustment, same as the Inventory module'
-                      : ''
-                }
               />
-              {Number(form.unitsPerPack) > 1 && (
-                <>
-                  <TextField
-                    label={`Loose ${form.unitOfMeasure === 'Strip' ? 'Tablets' : 'Units'} (not in a full ${form.unitOfMeasure})`}
-                    type="number"
-                    value={form.looseUnits}
-                    onChange={handleChange('looseUnits')}
-                    fullWidth
-                    inputProps={{ min: 0 }}
-                    sx={{ mt: 1.5 }}
-                    helperText={`E.g. a cut/partial ${form.unitOfMeasure.toLowerCase()} counted separately from full ${form.unitOfMeasure.toLowerCase()}s above`}
-                  />
-                  <TextField
-                    label="Total Unit Stock"
-                    value={Number(form.currentStock || 0) * Number(form.unitsPerPack) + Number(form.looseUnits || 0)}
-                    fullWidth
-                    disabled
-                    size="small"
-                    sx={{ mt: 1.5 }}
-                    helperText={`Auto-calculated: (${form.currentStock || 0} ${form.unitOfMeasure.toLowerCase()}s × ${form.unitsPerPack}) + ${form.looseUnits || 0} loose — this is what's tracked in inventory`}
-                  />
-                </>
-              )}
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField label="Barcode" value={form.barcode} onChange={handleChange('barcode')} fullWidth />
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
-                label={Number(form.unitsPerPack) > 1 ? `Minimum Stock Level (in ${form.unitOfMeasure}s)` : 'Minimum Stock Level'}
-                type="number"
-                value={form.minimumStockLevel}
-                onChange={handleChange('minimumStockLevel')}
+                label="Expiry Date (optional)"
+                type="date"
+                value={form.expiryDate}
+                onChange={handleChange('expiryDate')}
                 fullWidth
-                inputProps={{ min: 0 }}
-                helperText={
-                  Number(form.unitsPerPack) > 1
-                    ? `Alert will trigger below this many ${form.unitOfMeasure.toLowerCase()}s`
-                    : 'Alert will trigger below this level'
-                }
+                InputLabelProps={{ shrink: true }}
+                helperText="Leave blank for products with no expiry (e.g. devices, equipment)"
+              />
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ my: 3 }} />
+          <Typography variant="subtitle2" color="text.secondary" mb={2}>Storage &amp; Classification</Typography>
+          <Grid container spacing={2.5}>
+            <Grid item xs={12} md={4}>
+              <TextField
+                select
+                label="Schedule Classification"
+                value={form.scheduleClass}
+                onChange={handleChange('scheduleClass')}
+                fullWidth
+                helperText={SCHEDULE_CLASSES[form.scheduleClass]}
+              >
+                {Object.keys(SCHEDULE_CLASSES).map((s) => <MenuItem key={s} value={s}>{s === 'None' ? 'None' : `Schedule ${s}`}</MenuItem>)}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField
+                label="Storage Condition"
+                value={form.storageCondition}
+                onChange={handleChange('storageCondition')}
+                fullWidth
+                placeholder="Store below 25°C, protect from light..."
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField
+                label="Rack / Shelf / Bin Location"
+                value={form.location}
+                onChange={handleChange('location')}
+                fullWidth
+                placeholder="Rack 3 - Shelf B, Fridge 1..."
+                helperText="Where this medicine physically sits in the store"
               />
             </Grid>
           </Grid>
