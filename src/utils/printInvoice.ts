@@ -73,6 +73,14 @@ export const printInvoice = (
     ? `Discount: <span style="color:#d32f2f">${discountDisplay}</span> &nbsp;|&nbsp; `
     : '';
 
+  // Sum of each line's own discount (already reflected in that line's Amount
+  // column above) — shown here too so the Subtotal/Grand Total math is
+  // visibly traceable, not just correct under the hood.
+  const itemDiscountsTotal = bill.items.reduce((sum, item) => sum + (item.discount || 0), 0);
+  const itemDiscountsPart = itemDiscountsTotal > 0
+    ? `Item Discounts: <span style="color:#d32f2f">-₹${itemDiscountsTotal.toFixed(2)}</span> &nbsp;|&nbsp; `
+    : '';
+
   win.document.write(`<!DOCTYPE html>
 <html>
 <head>
@@ -150,7 +158,7 @@ export const printInvoice = (
     <tbody>${itemRows}</tbody>
   </table>
   <div class="totals-line">
-    ${discountPart}SGST: ₹${bill.sgstAmount.toFixed(2)} &nbsp;|&nbsp; CGST: ₹${bill.cgstAmount.toFixed(2)} &nbsp;|&nbsp; Subtotal: ₹${bill.subtotal.toFixed(2)}
+    ${itemDiscountsPart}${discountPart}SGST: ₹${bill.sgstAmount.toFixed(2)} &nbsp;|&nbsp; CGST: ₹${bill.cgstAmount.toFixed(2)} &nbsp;|&nbsp; Subtotal: ₹${bill.subtotal.toFixed(2)}
   </div>
   <table class="totals-table">
     <tr class="total-row"><td>Grand Total</td><td class="r">₹${bill.totalAmount.toFixed(2)}</td></tr>

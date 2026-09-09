@@ -158,9 +158,9 @@ const SupplierList: React.FC = () => {
         </Box>
       ),
     },
-    { id: 'phone', label: 'Phone', minWidth: 130 },
-    { id: 'email', label: 'Email', minWidth: 180 },
-    { id: 'gstNumber', label: 'GST No.', minWidth: 160 },
+    { id: 'phone', label: 'Phone', minWidth: 130, hideOnMobile: true },
+    { id: 'email', label: 'Email', minWidth: 180, hideOnMobile: true },
+    { id: 'gstNumber', label: 'GST No.', minWidth: 160, hideOnMobile: true },
     {
       id: 'outstandingBalance', label: 'Pending Payment', minWidth: 140, align: 'right' as const,
       render: (row: Supplier) => (

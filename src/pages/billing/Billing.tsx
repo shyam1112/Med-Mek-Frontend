@@ -4,6 +4,7 @@ import {
   Button, IconButton, Table, TableBody, TableCell, TableHead, TableRow,
   Divider, MenuItem, Autocomplete, CircularProgress, Dialog, DialogTitle,
   DialogContent, DialogActions, ToggleButton, ToggleButtonGroup, Chip, Tooltip,
+  useMediaQuery, useTheme,
 } from '@mui/material';
 import { Search, Delete, Save, Person, Print, CheckCircle, AddCircleOutline, Close } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
@@ -69,6 +70,8 @@ interface Doctor {
 
 const Billing: React.FC = () => {
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [items, setItems] = useState<BillItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Medicine[]>([]);
@@ -410,6 +413,151 @@ const Billing: React.FC = () => {
                   Add Item
                 </Button>
               </Box>
+              {isMobile ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {items.map((item, idx) => (
+                    <Box
+                      key={item.medicine._id}
+                      sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <Box>
+                          <Typography variant="body2" fontWeight={700}>{idx + 1}. {item.medicine.name}</Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Batch: {item.medicine.batchNumber} | Avl: {item.medicine.currentStock} {unitLabel()}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            ₹{item.sellingPrice.toFixed(2)}/{unitLabel()}
+                          </Typography>
+                        </Box>
+                        <IconButton size="small" color="error" onClick={() => removeItem(idx)}>
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+                        <TextField
+                          label="Qty" type="number" value={item.quantity}
+                          onChange={(e) => updateItem(idx, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
+                          inputRef={(el) => { qtyInputRefs.current[idx] = el; }}
+                          inputProps={{ min: 1, max: item.medicine.currentStock, style: { textAlign: 'center' } }}
+                          size="small" sx={{ flex: 1 }}
+                        />
+                        <TextField
+                          label="GST%" type="number" value={item.gstPercentage}
+                          onChange={(e) => updateItem(idx, 'gstPercentage', Math.min(Math.max(parseFloat(e.target.value) || 0, 0), 28))}
+                          inputProps={{ min: 0, max: 28, style: { textAlign: 'center' } }}
+                          size="small" sx={{ flex: 1 }}
+                        />
+                        <TextField
+                          label="Disc" type="number" value={item.discountValue}
+                          onChange={(e) => updateItemDiscountValue(idx, parseFloat(e.target.value) || 0)}
+                          inputProps={{
+                            min: 0,
+                            ...(item.discountMode === 'percent' ? { max: 100 } : {}),
+                            style: { textAlign: 'center' },
+                          }}
+                          size="small" sx={{ flex: 1 }}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end" sx={{ ml: 0 }}>
+                                <Box
+                                  component="button" type="button" tabIndex={-1}
+                                  onClick={() => toggleItemDiscountMode(idx)}
+                                  title="Toggle % / ₹"
+                                  sx={{
+                                    border: 'none', bgcolor: 'action.hover', borderRadius: 1, cursor: 'pointer',
+                                    px: 0.6, py: 0.2, fontSize: '0.7rem', fontWeight: 700, color: 'text.secondary',
+                                  }}
+                                >
+                                  {item.discountMode === 'percent' ? '%' : '₹'}
+                                </Box>
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      </Box>
+                      <Typography variant="body2" fontWeight={700} textAlign="right" mt={1}>
+                        Total: ₹{item.total.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  ))}
+
+                  {/* Always-present search card — same "never a blank line item"
+                      guarantee as the desktop table's trailing search row. */}
+                  <Box sx={{ border: '1px dashed', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+                    <Typography variant="caption" color="text.disabled" display="block" mb={0.5}>
+                      {items.length + 1}. Search medicine
+                    </Typography>
+                    <Autocomplete
+                      freeSolo
+                      size="small"
+                      options={searchResults}
+                      getOptionLabel={(o) => typeof o === 'string' ? o : `${o.name} (${o.batchNumber})`}
+                      inputValue={searchQuery}
+                      onInputChange={(_, v, reason) => { if (reason === 'input') { setSearchQuery(v); handleSearch(v); } }}
+                      onChange={(_, v) => { if (v && typeof v !== 'string') addItem(v as Medicine); }}
+                      onOpen={() => { if (searchResults.length === 0) handleSearch(searchQuery); }}
+                      loading={searchLoading}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          inputRef={searchInputRef}
+                          placeholder="Search medicine by name or barcode..."
+                          InputProps={{
+                            ...params.InputProps,
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Search fontSize="small" />
+                              </InputAdornment>
+                            ),
+                            endAdornment: (
+                              <>
+                                {searchLoading && <CircularProgress size={16} />}
+                                {searchQuery && (
+                                  <IconButton size="small" tabIndex={-1} onClick={() => { setSearchQuery(''); setSearchResults([]); }}>
+                                    <Close fontSize="small" />
+                                  </IconButton>
+                                )}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
+                      renderOption={(props, option) => (
+                        <Box component="li" {...props} key={(option as Medicine)._id}>
+                          <Box sx={{ flex: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                              <Typography variant="body2" fontWeight={600}>{(option as Medicine).name}</Typography>
+                              {(option as Medicine).scheduleClass && (option as Medicine).scheduleClass !== 'None' && (
+                                <Chip
+                                  label={`Rx · Sch. ${(option as Medicine).scheduleClass}`}
+                                  size="small"
+                                  color={SCHEDULE_COLORS[(option as Medicine).scheduleClass as string]}
+                                  sx={{ height: 18, fontSize: 10 }}
+                                />
+                              )}
+                            </Box>
+                            <Typography variant="caption" color="text.secondary">
+                              {(option as Medicine).genericName} • Batch: {(option as Medicine).batchNumber} •
+                              Stock: {(option as Medicine).currentStock} {unitLabel()}
+                            </Typography>
+                          </Box>
+                          <Typography variant="body2" fontWeight={700} color="primary">
+                            ₹{unitPriceOf(option as Medicine).toFixed(2)}/{unitLabel()}
+                          </Typography>
+                        </Box>
+                      )}
+                    />
+                  </Box>
+
+                  {items.length === 0 && (
+                    <Typography variant="body2" color="text.disabled" textAlign="center" py={2}>
+                      No medicines added yet — search above to add the first one
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -592,6 +740,7 @@ const Billing: React.FC = () => {
                   )}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </Grid>

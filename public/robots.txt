@@ -1,0 +1,7 @@
+# The app itself lives behind login (Dashboard, Billing, Inventory, etc.) and
+# is meaningless to a crawler — only the public entry points below are worth
+# indexing, so this doesn't need to disallow anything.
+User-agent: *
+Allow: /
+
+Sitemap: https://med-mek.vercel.app/sitemap.xml

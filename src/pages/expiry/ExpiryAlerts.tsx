@@ -84,9 +84,9 @@ const ExpiryAlerts: React.FC = () => {
         </Box>
       ),
     },
-    { id: 'batchNumber', label: 'Batch No.', minWidth: 120 },
+    { id: 'batchNumber', label: 'Batch No.', minWidth: 120, hideOnMobile: true },
     {
-      id: 'expiryDate', label: 'Expiry Date', minWidth: 120,
+      id: 'expiryDate', label: 'Expiry Date', minWidth: 120, hideOnMobile: true,
       render: (row: ExpiryMedicine) => new Date(row.expiryDate).toLocaleDateString('en-IN'),
     },
     {
@@ -100,10 +100,10 @@ const ExpiryAlerts: React.FC = () => {
       ),
     },
     {
-      id: 'currentStock', label: 'Stock', minWidth: 80, align: 'right' as const,
+      id: 'currentStock', label: 'Stock', minWidth: 80, align: 'right' as const, hideOnMobile: true,
     },
     {
-      id: 'loss', label: 'Est. Loss', minWidth: 110, align: 'right' as const,
+      id: 'loss', label: 'Est. Loss', minWidth: 110, align: 'right' as const, hideOnMobile: true,
       render: (row: ExpiryMedicine) => (
         <Typography variant="body2" fontWeight={600} color="error.main">
           ₹{(row.currentStock * row.purchasePrice).toFixed(2)}

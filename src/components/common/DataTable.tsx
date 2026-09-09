@@ -12,6 +12,10 @@ export interface TableColumn<T = any> {
   minWidth?: number;
   align?: 'left' | 'right' | 'center';
   render?: (row: T) => React.ReactNode;
+  // Hides this column below the "sm" breakpoint — for secondary details
+  // (batch, address, manufacturer, etc.) that would otherwise force a phone
+  // screen into a cramped table needing sideways scroll to see anything else.
+  hideOnMobile?: boolean;
 }
 
 interface Props {
@@ -47,6 +51,7 @@ const DataTable: React.FC<Props> = ({
                   key={col.id}
                   align={col.align || 'left'}
                   style={{ minWidth: col.minWidth }}
+                  sx={col.hideOnMobile ? { display: { xs: 'none', sm: 'table-cell' } } : undefined}
                 >
                   {col.label}
                 </TableCell>
@@ -73,7 +78,11 @@ const DataTable: React.FC<Props> = ({
               rows.map((row) => (
                 <TableRow key={keyExtractor(row)} hover>
                   {columns.map((col) => (
-                    <TableCell key={col.id} align={col.align || 'left'}>
+                    <TableCell
+                      key={col.id}
+                      align={col.align || 'left'}
+                      sx={col.hideOnMobile ? { display: { xs: 'none', sm: 'table-cell' } } : undefined}
+                    >
                       {col.render ? col.render(row) : String(row[col.id] ?? '')}
                     </TableCell>
                   ))}

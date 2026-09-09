@@ -179,7 +179,7 @@ const SalesList: React.FC = () => {
   const columns = [
     { id: 'billNumber', label: 'Bill No.', minWidth: 150,
       render: (row: Sale) => <Typography variant="body2" fontWeight={600} color="primary">{row.billNumber}</Typography> },
-    { id: 'saleDate', label: 'Date', minWidth: 140,
+    { id: 'saleDate', label: 'Date', minWidth: 140, hideOnMobile: true,
       render: (row: Sale) => new Date(row.saleDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) },
     { id: 'customerName', label: 'Customer', minWidth: 160,
       render: (row: Sale) => (
@@ -190,9 +190,9 @@ const SalesList: React.FC = () => {
       ) },
     { id: 'totalAmount', label: 'Amount', align: 'right' as const, minWidth: 100,
       render: (row: Sale) => formatCurrency(row.totalAmount) },
-    { id: 'paymentMode', label: 'Payment', minWidth: 100,
+    { id: 'paymentMode', label: 'Payment', minWidth: 100, hideOnMobile: true,
       render: (row: Sale) => <Chip label={row.paymentMode.toUpperCase()} size="small" /> },
-    { id: 'status', label: 'Status', minWidth: 120,
+    { id: 'status', label: 'Status', minWidth: 120, hideOnMobile: true,
       render: (row: Sale) => row.totalReturned > 0
         ? <Chip label={`Returned ${formatCurrency(row.totalReturned)}`} color="warning" size="small" />
         : <Chip label="Completed" color="success" size="small" variant="outlined" /> },

@@ -110,7 +110,7 @@ const Inventory: React.FC = () => {
   };
 
   const columns = [
-    { id: 'createdAt', label: 'Date', minWidth: 160,
+    { id: 'createdAt', label: 'Date', minWidth: 160, hideOnMobile: true,
       render: (row: Transaction) => new Date(row.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) },
     { id: 'medicineName', label: 'Medicine', minWidth: 180 },
     { id: 'transactionType', label: 'Type', minWidth: 120,
@@ -130,10 +130,10 @@ const Inventory: React.FC = () => {
         </Typography>
       ),
     },
-    { id: 'previousStock', label: 'Before', align: 'right' as const },
+    { id: 'previousStock', label: 'Before', align: 'right' as const, hideOnMobile: true },
     { id: 'newStock', label: 'After', align: 'right' as const },
-    { id: 'reference', label: 'Reference', minWidth: 150 },
-    { id: 'notes', label: 'Notes', minWidth: 200 },
+    { id: 'reference', label: 'Reference', minWidth: 150, hideOnMobile: true },
+    { id: 'notes', label: 'Notes', minWidth: 200, hideOnMobile: true },
   ];
 
   return (

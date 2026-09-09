@@ -151,7 +151,7 @@ const AdminPanel: React.FC = () => {
       ),
     },
     {
-      id: 'store', label: 'Store', minWidth: 200,
+      id: 'store', label: 'Store', minWidth: 200, hideOnMobile: true,
       render: (row: UserRequest) => (
         <Box>
           <Typography variant="body2" fontWeight={600}>{row.storeName || '—'}</Typography>
@@ -159,10 +159,10 @@ const AdminPanel: React.FC = () => {
         </Box>
       ),
     },
-    { id: 'email', label: 'Email', minWidth: 200 },
-    { id: 'storeGST', label: 'GST No.', minWidth: 160, render: (row: UserRequest) => row.storeGST || '—' },
+    { id: 'email', label: 'Email', minWidth: 200, hideOnMobile: true },
+    { id: 'storeGST', label: 'GST No.', minWidth: 160, hideOnMobile: true, render: (row: UserRequest) => row.storeGST || '—' },
     {
-      id: 'createdAt', label: 'Applied On', minWidth: 130,
+      id: 'createdAt', label: 'Applied On', minWidth: 130, hideOnMobile: true,
       render: (row: UserRequest) => new Date(row.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
     },
     {

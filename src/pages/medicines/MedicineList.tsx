@@ -120,13 +120,13 @@ const MedicineList: React.FC = () => {
         <Box fontSize="0.75rem" color="text.secondary">{row.genericName}</Box>
       </Box>
     )},
-    { id: 'category', label: 'Category', minWidth: 120 },
-    { id: 'batchNumber', label: 'Batch', minWidth: 100 },
+    { id: 'category', label: 'Category', minWidth: 120, hideOnMobile: true },
+    { id: 'batchNumber', label: 'Batch', minWidth: 100, hideOnMobile: true },
     {
-      id: 'location', label: 'Location', minWidth: 130,
+      id: 'location', label: 'Location', minWidth: 130, hideOnMobile: true,
       render: (row: Medicine) => row.location || <Box component="span" color="text.disabled">—</Box>,
     },
-    { id: 'expiryDate', label: 'Expiry', minWidth: 110, render: (row: Medicine) => getExpiryChip(row.expiryDate) },
+    { id: 'expiryDate', label: 'Expiry', minWidth: 110, hideOnMobile: true, render: (row: Medicine) => getExpiryChip(row.expiryDate) },
     { id: 'sellingPrice', label: 'MRP (₹)', minWidth: 90, align: 'right' as const, render: (row: Medicine) => `₹${row.sellingPrice.toFixed(2)}` },
     { id: 'currentStock', label: 'Stock', minWidth: 100, render: (row: Medicine) => getStockChip(row) },
     {

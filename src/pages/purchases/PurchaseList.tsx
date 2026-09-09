@@ -319,9 +319,9 @@ const PurchaseList: React.FC = () => {
   const columns = [
     { id: 'invoiceNumber', label: 'Invoice #', minWidth: 140 },
     { id: 'supplierName', label: 'Supplier', minWidth: 180 },
-    { id: 'purchaseDate', label: 'Date', minWidth: 120, render: (row: Purchase) => new Date(row.purchaseDate).toLocaleDateString('en-IN') },
-    { id: 'totalAmount', label: 'Total', align: 'right' as const, render: (row: Purchase) => `₹${row.totalAmount.toFixed(0)}` },
-    { id: 'paidAmount', label: 'Paid', align: 'right' as const, render: (row: Purchase) => (
+    { id: 'purchaseDate', label: 'Date', minWidth: 120, hideOnMobile: true, render: (row: Purchase) => new Date(row.purchaseDate).toLocaleDateString('en-IN') },
+    { id: 'totalAmount', label: 'Total', align: 'right' as const, hideOnMobile: true, render: (row: Purchase) => `₹${row.totalAmount.toFixed(0)}` },
+    { id: 'paidAmount', label: 'Paid', align: 'right' as const, hideOnMobile: true, render: (row: Purchase) => (
       <Typography variant="body2" color={row.paidAmount > 0 ? 'success.main' : 'text.secondary'}>
         ₹{row.paidAmount.toFixed(0)}
       </Typography>
@@ -331,7 +331,7 @@ const PurchaseList: React.FC = () => {
         ₹{row.balanceAmount.toFixed(0)}
       </Typography>
     )},
-    { id: 'paymentStatus', label: 'Status', render: (row: Purchase) => (
+    { id: 'paymentStatus', label: 'Status', hideOnMobile: true, render: (row: Purchase) => (
       <Chip label={row.paymentStatus.toUpperCase()} color={STATUS_COLORS[row.paymentStatus]} size="small" />
     )},
     { id: 'actions', label: '', align: 'right' as const, render: (row: Purchase) => (

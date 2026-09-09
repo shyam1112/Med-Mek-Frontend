@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import api from '../../api';
+import AuthShell from './AuthShell';
 
 interface FormData {
   username: string;
@@ -103,13 +104,8 @@ const SignUp: React.FC = () => {
 
   if (success) {
     return (
-      <Box
-        sx={{
-          minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'linear-gradient(135deg, #1565c0 0%, #0d47a1 100%)', p: 2,
-        }}
-      >
-        <Card sx={{ width: '100%', maxWidth: 480, borderRadius: 3 }}>
+      <AuthShell>
+        <Card sx={{ width: '100%', maxWidth: 480, borderRadius: 4, boxShadow: '0 24px 70px rgba(0,0,0,0.35)' }}>
           <CardContent sx={{ p: 5, textAlign: 'center' }}>
             <Box sx={{ width: 80, height: 80, borderRadius: '50%', bgcolor: 'success.light', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
               <CheckCircleOutline sx={{ fontSize: 44, color: 'success.main' }} />
@@ -139,18 +135,13 @@ const SignUp: React.FC = () => {
             </Button>
           </CardContent>
         </Card>
-      </Box>
+      </AuthShell>
     );
   }
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'linear-gradient(135deg, #1565c0 0%, #0d47a1 100%)', p: 2,
-      }}
-    >
-      <Card sx={{ width: '100%', maxWidth: 520, borderRadius: 3 }}>
+    <AuthShell>
+      <Card sx={{ width: '100%', maxWidth: 520, borderRadius: 4, boxShadow: '0 24px 70px rgba(0,0,0,0.35)' }}>
         <CardContent sx={{ p: 4 }}>
           {/* Logo */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
@@ -331,7 +322,7 @@ const SignUp: React.FC = () => {
           </Typography>
         </CardContent>
       </Card>
-    </Box>
+    </AuthShell>
   );
 };
 

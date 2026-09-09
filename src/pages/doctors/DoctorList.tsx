@@ -105,15 +105,15 @@ const DoctorList: React.FC = () => {
       ),
     },
     {
-      id: 'specialization', label: 'Specialization', minWidth: 150,
+      id: 'specialization', label: 'Specialization', minWidth: 150, hideOnMobile: true,
       render: (row: Doctor) => row.specialization || <Box component="span" color="text.disabled">—</Box>,
     },
     {
-      id: 'clinicName', label: 'Clinic', minWidth: 160,
+      id: 'clinicName', label: 'Clinic', minWidth: 160, hideOnMobile: true,
       render: (row: Doctor) => row.clinicName || <Box component="span" color="text.disabled">—</Box>,
     },
     {
-      id: 'phone', label: 'Phone', minWidth: 130,
+      id: 'phone', label: 'Phone', minWidth: 130, hideOnMobile: true,
       render: (row: Doctor) => row.phone || <Box component="span" color="text.disabled">—</Box>,
     },
     {

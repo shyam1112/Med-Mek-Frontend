@@ -6,6 +6,7 @@ import {
 import { Visibility, VisibilityOff, LocalPharmacy, PersonOutline, LockOutlined } from '@mui/icons-material';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import AuthShell from './AuthShell';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -34,17 +35,8 @@ const Login: React.FC = () => {
   };
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #1565c0 0%, #0d47a1 50%, #01579b 100%)',
-        p: 2,
-      }}
-    >
-      <Card sx={{ width: '100%', maxWidth: 440, borderRadius: 3 }}>
+    <AuthShell>
+      <Card sx={{ width: '100%', maxWidth: 440, borderRadius: 4, boxShadow: '0 24px 70px rgba(0,0,0,0.35)' }}>
         <CardContent sx={{ p: 4 }}>
           {/* Logo */}
           <Box sx={{ textAlign: 'center', mb: 4 }}>
@@ -157,7 +149,7 @@ const Login: React.FC = () => {
           </Typography>
         </CardContent>
       </Card>
-    </Box>
+    </AuthShell>
   );
 };
 

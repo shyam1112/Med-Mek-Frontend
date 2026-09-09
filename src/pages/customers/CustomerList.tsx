@@ -162,7 +162,7 @@ const CustomerList: React.FC = () => {
       ),
     },
     {
-      id: 'address', label: 'Address', minWidth: 180,
+      id: 'address', label: 'Address', minWidth: 180, hideOnMobile: true,
       render: (row: Customer) => row.address || <Typography variant="body2" color="text.disabled">—</Typography>,
     },
     {
@@ -174,7 +174,7 @@ const CustomerList: React.FC = () => {
       ),
     },
     {
-      id: 'createdAt', label: 'Customer Since', minWidth: 120,
+      id: 'createdAt', label: 'Customer Since', minWidth: 120, hideOnMobile: true,
       render: (row: Customer) => new Date(row.createdAt).toLocaleDateString('en-IN'),
     },
     {
