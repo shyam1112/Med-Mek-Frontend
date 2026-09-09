@@ -13,9 +13,22 @@ import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
 import { printInvoice, InvoiceData as SavedBill } from '../../utils/printInvoice';
 
+// Same option lists as the full Add Medicine form — kept in sync there since
+// quick-add is a deliberately smaller subset of that same form, not a
+// separate source of truth.
+const QUICK_ADD_CATEGORIES = [
+  'Analgesic', 'Antibiotic', 'Antacid', 'Antifungal', 'Antihistamine',
+  'Antiviral', 'Cardiovascular', 'Diabetes', 'Dermatology', 'ENT',
+  'Eye/Ear', 'Gastrointestinal', 'Hormones', 'Nutritional', 'Orthopedic',
+  'Pediatric', 'Psychiatric', 'Respiratory', 'Surgical', 'Vitamins', 'Other',
+];
+const QUICK_ADD_UNITS = ['Strip', 'Bottle', 'Box', 'Tube', 'Vial', 'Piece'];
+const QUICK_ADD_GST_OPTIONS = [0, 5, 12, 18, 28];
+
 interface Medicine {
   _id: string;
   name: string;
+  strength?: string;
   genericName: string;
   manufacturer: string;
   packSize: string;
@@ -39,6 +52,11 @@ const unitPriceOf = (medicine: Medicine): number => medicine.sellingPrice / (med
 // medicine (tablet, syrup, bottle...) instead of switching between "/strip",
 // "/bottle" etc. based on each medicine's own pack configuration.
 const unitLabel = (): string => 'unit';
+// Two products can share the exact same name at different strengths (e.g.
+// "Calpol" 250mg vs 500mg) — appending strength wherever the name is shown
+// is what actually tells them apart in search and on the bill.
+const displayName = (medicine: Medicine): string =>
+  medicine.strength ? `${medicine.name} ${medicine.strength}` : medicine.name;
 
 const SCHEDULE_COLORS: Record<string, 'warning' | 'error'> = { H: 'warning', H1: 'warning', X: 'error' };
 
@@ -76,6 +94,18 @@ const Billing: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Medicine[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  // Quick-add: lets the pharmacist create a medicine that was never entered
+  // into the system — mid-bill, without leaving Billing — and have it drop
+  // straight into the current bill. Only the fields actually needed to sell
+  // it right now; everything else (batch, expiry, HSN, storage...) can be
+  // filled in properly later from Medicines → Edit.
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({
+    name: '', category: 'Other', strength: '', unitOfMeasure: 'Strip', unitsPerPack: '10',
+    currentStock: '1', sellingPrice: '', gstPercentage: '5',
+    purchasePrice: '', expiryDate: '',
+  });
   const [customerId, setCustomerId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
@@ -279,6 +309,57 @@ const Billing: React.FC = () => {
     }
     setSearchQuery('');
     setSearchResults([]);
+  };
+
+  const openQuickAdd = () => {
+    setQuickAddForm((prev) => ({ ...prev, name: searchQuery }));
+    setQuickAddOpen(true);
+  };
+
+  const closeQuickAdd = () => {
+    setQuickAddOpen(false);
+    setQuickAddForm({
+      name: '', category: 'Other', strength: '', unitOfMeasure: 'Strip', unitsPerPack: '10',
+      currentStock: '1', sellingPrice: '', gstPercentage: '5',
+      purchasePrice: '', expiryDate: '',
+    });
+  };
+
+  const handleQuickAddSave = async () => {
+    if (!quickAddForm.name.trim()) {
+      enqueueSnackbar('Medicine name is required', { variant: 'warning' });
+      return;
+    }
+    if (!quickAddForm.sellingPrice || parseFloat(quickAddForm.sellingPrice) <= 0) {
+      enqueueSnackbar('Selling price (MRP) is required', { variant: 'warning' });
+      return;
+    }
+    setQuickAddSaving(true);
+    try {
+      const unitsPerPack = parseInt(quickAddForm.unitsPerPack, 10) || 1;
+      const { data } = await api.post('/medicines', {
+        name: quickAddForm.name.trim(),
+        category: quickAddForm.category,
+        strength: quickAddForm.strength.trim(),
+        unitOfMeasure: quickAddForm.unitOfMeasure,
+        unitsPerPack,
+        // Entered in packs, same convention as the full Add Medicine form.
+        currentStock: (parseInt(quickAddForm.currentStock, 10) || 0) * unitsPerPack,
+        purchasePrice: parseFloat(quickAddForm.purchasePrice) || 0,
+        sellingPrice: parseFloat(quickAddForm.sellingPrice),
+        gstPercentage: parseInt(quickAddForm.gstPercentage, 10),
+        expiryDate: quickAddForm.expiryDate || undefined,
+      });
+      enqueueSnackbar(`${data.data.name} added — now in this bill`, { variant: 'success' });
+      addItem(data.data as Medicine);
+      closeQuickAdd();
+      requestAnimationFrame(() => searchInputRef.current?.focus());
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      enqueueSnackbar(msg || 'Failed to add medicine', { variant: 'error' });
+    } finally {
+      setQuickAddSaving(false);
+    }
   };
 
   const getItemDiscountAmount = (item: BillItem) => {
@@ -498,7 +579,7 @@ const Billing: React.FC = () => {
                       freeSolo
                       size="small"
                       options={searchResults}
-                      getOptionLabel={(o) => typeof o === 'string' ? o : `${o.name} (${o.batchNumber})`}
+                      getOptionLabel={(o) => typeof o === 'string' ? o : `${displayName(o)} (${o.batchNumber})`}
                       inputValue={searchQuery}
                       onInputChange={(_, v, reason) => { if (reason === 'input') { setSearchQuery(v); handleSearch(v); } }}
                       onChange={(_, v) => { if (v && typeof v !== 'string') addItem(v as Medicine); }}
@@ -534,7 +615,7 @@ const Billing: React.FC = () => {
                         <Box component="li" {...props} key={(option as Medicine)._id}>
                           <Box sx={{ flex: 1 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                              <Typography variant="body2" fontWeight={600}>{(option as Medicine).name}</Typography>
+                              <Typography variant="body2" fontWeight={600}>{displayName(option as Medicine)}</Typography>
                               {(option as Medicine).scheduleClass && (option as Medicine).scheduleClass !== 'None' && (
                                 <Chip
                                   label={`Rx · Sch. ${(option as Medicine).scheduleClass}`}
@@ -555,6 +636,16 @@ const Billing: React.FC = () => {
                         </Box>
                       )}
                     />
+                    {searchQuery.trim() && !searchLoading && searchResults.length === 0 && (
+                      <Button
+                        size="small"
+                        startIcon={<AddCircleOutline />}
+                        onClick={openQuickAdd}
+                        sx={{ mt: 1 }}
+                      >
+                        Add "{searchQuery.trim()}" as new medicine
+                      </Button>
+                    )}
                   </Box>
 
                   {items.length === 0 && (
@@ -669,7 +760,7 @@ const Billing: React.FC = () => {
                         freeSolo
                         size="small"
                         options={searchResults}
-                        getOptionLabel={(o) => typeof o === 'string' ? o : `${o.name} (${o.batchNumber})`}
+                        getOptionLabel={(o) => typeof o === 'string' ? o : `${displayName(o)} (${o.batchNumber})`}
                         inputValue={searchQuery}
                         onInputChange={(_, v, reason) => { if (reason === 'input') { setSearchQuery(v); handleSearch(v); } }}
                         onChange={(_, v) => { if (v && typeof v !== 'string') addItem(v as Medicine); }}
@@ -700,7 +791,7 @@ const Billing: React.FC = () => {
                           <Box component="li" {...props} key={(option as Medicine)._id}>
                             <Box sx={{ flex: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                <Typography variant="body2" fontWeight={600}>{(option as Medicine).name}</Typography>
+                                <Typography variant="body2" fontWeight={600}>{displayName(option as Medicine)}</Typography>
                                 {(option as Medicine).scheduleClass && (option as Medicine).scheduleClass !== 'None' && (
                                   <Chip
                                     label={`Rx · Sch. ${(option as Medicine).scheduleClass}`}
@@ -722,6 +813,16 @@ const Billing: React.FC = () => {
                           </Box>
                         )}
                       />
+                      {searchQuery.trim() && !searchLoading && searchResults.length === 0 && (
+                        <Button
+                          size="small"
+                          startIcon={<AddCircleOutline />}
+                          onClick={openQuickAdd}
+                          sx={{ mt: 0.5 }}
+                        >
+                          Add "{searchQuery.trim()}" as new medicine
+                        </Button>
+                      )}
                     </TableCell>
                     <TableCell>
                       {searchQuery && (
@@ -1057,6 +1158,154 @@ const Billing: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* ── Quick Add Medicine Dialog ── */}
+      <Dialog open={quickAddOpen} onClose={closeQuickAdd} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New Medicine</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2.5}>
+            Just enough to sell it right now — add batch number, HSN code, and other details later from Medicines → Edit.
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Medicine Name *"
+              value={quickAddForm.name}
+              onChange={(e) => setQuickAddForm((prev) => ({ ...prev, name: e.target.value }))}
+              fullWidth
+              autoFocus
+            />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                select
+                label="Category"
+                value={quickAddForm.category}
+                onChange={(e) => setQuickAddForm((prev) => ({ ...prev, category: e.target.value }))}
+                fullWidth
+              >
+                {QUICK_ADD_CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+              </TextField>
+              <TextField
+                label="Strength"
+                value={quickAddForm.strength}
+                onChange={(e) => setQuickAddForm((prev) => ({ ...prev, strength: e.target.value }))}
+                fullWidth
+                placeholder="ex. 500 mg, 650 mg, 5 gm etc."
+              />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                select
+                label="Unit of Measure"
+                value={quickAddForm.unitOfMeasure}
+                onChange={(e) => {
+                  const newUnit = e.target.value;
+                  setQuickAddForm((prev) => ({
+                    ...prev,
+                    unitOfMeasure: newUnit,
+                    unitsPerPack: newUnit === 'Strip' ? '10' : '1',
+                  }));
+                }}
+                fullWidth
+              >
+                {QUICK_ADD_UNITS.map((u) => <MenuItem key={u} value={u}>{u}</MenuItem>)}
+              </TextField>
+              <TextField
+                label={`Units per ${quickAddForm.unitOfMeasure}`}
+                type="number"
+                value={quickAddForm.unitsPerPack}
+                onChange={(e) => setQuickAddForm((prev) => ({ ...prev, unitsPerPack: e.target.value }))}
+                inputProps={{ min: 1 }}
+                fullWidth
+              />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label={`Current Stock (in ${quickAddForm.unitOfMeasure}s)`}
+                type="number"
+                value={quickAddForm.currentStock}
+                onChange={(e) => setQuickAddForm((prev) => ({ ...prev, currentStock: e.target.value }))}
+                inputProps={{ min: 0 }}
+                fullWidth
+                helperText="How many you actually have"
+              />
+              <TextField
+                select
+                label="GST %"
+                value={quickAddForm.gstPercentage}
+                onChange={(e) => setQuickAddForm((prev) => ({ ...prev, gstPercentage: e.target.value }))}
+                fullWidth
+              >
+                {QUICK_ADD_GST_OPTIONS.map((g) => <MenuItem key={g} value={g}>{g}%</MenuItem>)}
+              </TextField>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label={`Cost Price (₹) per ${quickAddForm.unitOfMeasure}`}
+                type="number"
+                value={quickAddForm.purchasePrice}
+                onChange={(e) => setQuickAddForm((prev) => ({ ...prev, purchasePrice: e.target.value }))}
+                inputProps={{ min: 0, step: 0.01 }}
+                fullWidth
+                helperText="Optional — leave blank if not sure"
+              />
+              <TextField
+                label={`Selling Price / MRP (₹) per ${quickAddForm.unitOfMeasure} *`}
+                type="number"
+                value={quickAddForm.sellingPrice}
+                onChange={(e) => setQuickAddForm((prev) => ({ ...prev, sellingPrice: e.target.value }))}
+                inputProps={{ min: 0, step: 0.01 }}
+                fullWidth
+              />
+            </Box>
+            {Number(quickAddForm.unitsPerPack) > 1 && (
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField
+                  label="Cost Price per Unit (₹)"
+                  value={
+                    quickAddForm.purchasePrice
+                      ? (parseFloat(quickAddForm.purchasePrice) / Number(quickAddForm.unitsPerPack)).toFixed(2)
+                      : ''
+                  }
+                  fullWidth
+                  disabled
+                  size="small"
+                />
+                <TextField
+                  label="Selling Price per Unit (₹)"
+                  value={
+                    quickAddForm.sellingPrice
+                      ? (parseFloat(quickAddForm.sellingPrice) / Number(quickAddForm.unitsPerPack)).toFixed(2)
+                      : ''
+                  }
+                  fullWidth
+                  disabled
+                  size="small"
+                  helperText="What billing actually charges per unit"
+                />
+              </Box>
+            )}
+            <TextField
+              label="Expiry Date (optional)"
+              type="date"
+              value={quickAddForm.expiryDate}
+              onChange={(e) => setQuickAddForm((prev) => ({ ...prev, expiryDate: e.target.value }))}
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={closeQuickAdd} color="inherit">Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleQuickAddSave}
+            disabled={quickAddSaving}
+            startIcon={quickAddSaving ? <CircularProgress size={16} color="inherit" /> : <AddCircleOutline />}
+          >
+            {quickAddSaving ? 'Adding...' : 'Add & Use in Bill'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── Bill Saved Dialog ── */}
       <Dialog open={!!savedBill} maxWidth="xs" fullWidth>

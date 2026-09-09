@@ -66,20 +66,16 @@ export const printInvoice = (
     </tr>
   `).join('');
 
-  const discountDisplay = bill.discountPercent
-    ? `-${bill.discountPercent}%`
-    : `-₹${bill.discountAmount.toFixed(2)}`;
-  const discountPart = bill.discountAmount > 0
-    ? `Discount: <span style="color:#d32f2f">${discountDisplay}</span> &nbsp;|&nbsp; `
-    : '';
+  // When the pharmacist entered the bill-level discount as a %, the label
+  // shows that % but the amount column still shows the actual ₹ deducted —
+  // customers see both at a glance, not one or the other.
+  const discountLabel = bill.discountPercent ? `Discount (${bill.discountPercent}%)` : 'Discount';
+  const discountDisplay = `-₹${bill.discountAmount.toFixed(2)}`;
 
   // Sum of each line's own discount (already reflected in that line's Amount
   // column above) — shown here too so the Subtotal/Grand Total math is
   // visibly traceable, not just correct under the hood.
   const itemDiscountsTotal = bill.items.reduce((sum, item) => sum + (item.discount || 0), 0);
-  const itemDiscountsPart = itemDiscountsTotal > 0
-    ? `Item Discounts: <span style="color:#d32f2f">-₹${itemDiscountsTotal.toFixed(2)}</span> &nbsp;|&nbsp; `
-    : '';
 
   win.document.write(`<!DOCTYPE html>
 <html>
@@ -108,6 +104,7 @@ export const printInvoice = (
     .totals-line { text-align:right; font-size:10px; color:#333; margin:4px 0 2px; }
     .totals-table { width:220px; margin-left:auto; }
     .totals-table td { padding:1.5px 4px; font-size:10px; }
+    .discount-row td { font-weight:700; font-size:11.5px; color:#d32f2f; padding-top:3px; }
     .total-row td { font-weight:700; font-size:12.5px; border-top:1.5px solid #000; padding-top:3px; }
     .footer { text-align:center; margin-top:8px; font-size:9px; color:#555; }
     .payment-badge { display:inline-block; border:1px solid #000; border-radius:3px; padding:1px 6px; font-weight:700; font-size:9.5px; }
@@ -158,9 +155,11 @@ export const printInvoice = (
     <tbody>${itemRows}</tbody>
   </table>
   <div class="totals-line">
-    ${itemDiscountsPart}${discountPart}SGST: ₹${bill.sgstAmount.toFixed(2)} &nbsp;|&nbsp; CGST: ₹${bill.cgstAmount.toFixed(2)} &nbsp;|&nbsp; Subtotal: ₹${bill.subtotal.toFixed(2)}
+    SGST: ₹${bill.sgstAmount.toFixed(2)} &nbsp;|&nbsp; CGST: ₹${bill.cgstAmount.toFixed(2)} &nbsp;|&nbsp; Subtotal: ₹${bill.subtotal.toFixed(2)}
   </div>
   <table class="totals-table">
+    ${itemDiscountsTotal > 0 ? `<tr class="discount-row"><td>Item Discount</td><td class="r">-₹${itemDiscountsTotal.toFixed(2)}</td></tr>` : ''}
+    ${bill.discountAmount > 0 ? `<tr class="discount-row"><td>${discountLabel}</td><td class="r">${discountDisplay}</td></tr>` : ''}
     <tr class="total-row"><td>Grand Total</td><td class="r">₹${bill.totalAmount.toFixed(2)}</td></tr>
   </table>
   <div class="dashed"></div>
